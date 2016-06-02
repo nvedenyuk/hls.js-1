@@ -36,6 +36,7 @@ class StreamController extends EventHandler {
       Event.MANIFEST_PARSED,
       Event.LEVEL_LOADED,
       Event.KEY_LOADED,
+      Event.FRAG_CHUNK_LOADED,
       Event.FRAG_LOADED,
       Event.FRAG_LOAD_EMERGENCY_ABORTED,
       Event.FRAG_PARSING_INIT_SEGMENT,
@@ -815,13 +816,51 @@ class StreamController extends EventHandler {
     }
   }
 
+  onFragChunkLoaded(data) {
+    var fragCurrent = this.fragCurrent;
+    if ((this.state === State.FRAG_LOADING || this.state === State.PARSING) &&
+        fragCurrent && !this.fragBitrateTest &&
+        data.frag.level === fragCurrent.level &&
+        data.frag.sn === fragCurrent.sn) {
+      logger.log(`Loaded chunk ${data.payload.byteLength} of frag ${fragCurrent.sn} of level ${fragCurrent.level}`);
+      this.state = State.PARSING;
+      // transmux the MPEG-TS data to ISO-BMFF segments
+      this.stats = data.stats;
+      var currentLevel = this.levels[this.level],
+          details = currentLevel.details,
+          duration = details.totalduration,
+          start = fragCurrent.start,
+          level = fragCurrent.level,
+          sn = fragCurrent.sn,
+          audioCodec = this.config.defaultAudioCodec || currentLevel.audioCodec;
+      if(this.audioCodecSwap) {
+        logger.log('swapping playlist audio codec');
+        if(audioCodec === undefined) {
+          audioCodec = this.lastAudioCodec;
+        }
+        if(audioCodec) {
+          if(audioCodec.indexOf('mp4a.40.5') !==-1) {
+            audioCodec = 'mp4a.40.2';
+          } else {
+            audioCodec = 'mp4a.40.5';
+          }
+        }
+      }
+      let demuxer = this.demuxer;
+      if (demuxer) {
+        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
+      }
+    }
+    this.fragLoadError = 0;
+  }
+
   onFragLoaded(data) {
     var fragCurrent = this.fragCurrent;
-    if (this.state === State.FRAG_LOADING &&
+    if ((this.state === State.FRAG_LOADING || this.state === State.PARSING) &&
         fragCurrent &&
         data.frag.level === fragCurrent.level &&
         data.frag.sn === fragCurrent.sn) {
-      logger.log(`Loaded  ${fragCurrent.sn} of level ${fragCurrent.level}`);
+      logger.log(`Loaded ${fragCurrent.sn} of level ${fragCurrent.level}`);
       if (this.fragBitrateTest === true) {
         // switch back to IDLE state ... we just loaded a fragment to determine adequate start bitrate and initialize autoswitch algo
         this.state = State.IDLE;
@@ -829,36 +868,9 @@ class StreamController extends EventHandler {
         this.startFragRequested = false;
         data.stats.tparsed = data.stats.tbuffered = performance.now();
         this.hls.trigger(Event.FRAG_BUFFERED, {stats: data.stats, frag: fragCurrent});
-      } else {
-        this.state = State.PARSING;
-        // transmux the MPEG-TS data to ISO-BMFF segments
-        this.stats = data.stats;
-        var currentLevel = this.levels[this.level],
-            details = currentLevel.details,
-            duration = details.totalduration,
-            start = fragCurrent.start,
-            level = fragCurrent.level,
-            sn = fragCurrent.sn,
-            audioCodec = this.config.defaultAudioCodec || currentLevel.audioCodec;
-        if(this.audioCodecSwap) {
-          logger.log('swapping playlist audio codec');
-          if(audioCodec === undefined) {
-            audioCodec = this.lastAudioCodec;
-          }
-          if(audioCodec) {
-            if(audioCodec.indexOf('mp4a.40.5') !==-1) {
-              audioCodec = 'mp4a.40.2';
-            } else {
-              audioCodec = 'mp4a.40.5';
-            }
-          }
-        }
+      }
+      else {
         this.pendingAppending = 0;
-        logger.log(`Demuxing ${sn} of [${details.startSN} ,${details.endSN}],level ${level}`);
-        let demuxer = this.demuxer;
-        if (demuxer) {
-          demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
-        }
       }
     }
     this.fragLoadError = 0;
@@ -870,7 +882,7 @@ class StreamController extends EventHandler {
 
       // include levelCodec in audio and video tracks
       track = tracks.audio;
-      if(track) {
+      if (track) {
         var audioCodec = this.levels[this.level].audioCodec,
             ua = navigator.userAgent.toLowerCase();
         if(audioCodec && this.audioCodecSwap) {

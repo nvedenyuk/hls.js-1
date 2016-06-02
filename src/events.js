@@ -43,6 +43,8 @@ module.exports = {
   FRAG_LOAD_PROGRESS: 'hlsFragLoadProgress',
   // Identifier for fragment load aborting for emergency switch down - data: {frag : fragment object}
   FRAG_LOAD_EMERGENCY_ABORTED: 'hlsFragLoadEmergencyAborted',
+  // fired when a fragment chunk loading is completed - data: { frag : fragment object, payload : fragment payload}
+  FRAG_CHUNK_LOADED: 'hlsFragChunkLoaded',
   // fired when a fragment loading is completed - data: { frag : fragment object, payload : fragment payload, stats : { trequest, tfirst, tload, length}}
   FRAG_LOADED: 'hlsFragLoaded',
   // fired when Init Segment has been extracted from fragment - data: { moov : moov MP4 box, codecs : codecs found while parsing fragment}

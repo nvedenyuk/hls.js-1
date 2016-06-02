@@ -1757,7 +1757,7 @@ var StreamController = function (_EventHandler) {
   function StreamController(hls) {
     _classCallCheck(this, StreamController);
 
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(StreamController).call(this, hls, _events2.default.MEDIA_ATTACHED, _events2.default.MEDIA_DETACHING, _events2.default.MANIFEST_LOADING, _events2.default.MANIFEST_PARSED, _events2.default.LEVEL_LOADED, _events2.default.KEY_LOADED, _events2.default.FRAG_LOADED, _events2.default.FRAG_LOAD_EMERGENCY_ABORTED, _events2.default.FRAG_PARSING_INIT_SEGMENT, _events2.default.FRAG_PARSING_DATA, _events2.default.FRAG_PARSED, _events2.default.ERROR, _events2.default.BUFFER_APPENDED, _events2.default.BUFFER_FLUSHED));
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(StreamController).call(this, hls, _events2.default.MEDIA_ATTACHED, _events2.default.MEDIA_DETACHING, _events2.default.MANIFEST_LOADING, _events2.default.MANIFEST_PARSED, _events2.default.LEVEL_LOADED, _events2.default.KEY_LOADED, _events2.default.FRAG_CHUNK_LOADED, _events2.default.FRAG_LOADED, _events2.default.FRAG_LOAD_EMERGENCY_ABORTED, _events2.default.FRAG_PARSING_INIT_SEGMENT, _events2.default.FRAG_PARSING_DATA, _events2.default.FRAG_PARSED, _events2.default.ERROR, _events2.default.BUFFER_APPENDED, _events2.default.BUFFER_FLUSHED));
 
     _this.config = hls.config;
     _this.audioCodecSwap = false;
@@ -2557,11 +2557,47 @@ var StreamController = function (_EventHandler) {
       }
     }
   }, {
+    key: 'onFragChunkLoaded',
+    value: function onFragChunkLoaded(data) {
+      var fragCurrent = this.fragCurrent;
+      if ((this.state === State.FRAG_LOADING || this.state === State.PARSING) && fragCurrent && !this.fragBitrateTest && data.frag.level === fragCurrent.level && data.frag.sn === fragCurrent.sn) {
+        _logger.logger.log('Loaded chunk ' + data.payload.byteLength + ' of frag ' + fragCurrent.sn + ' of level ' + fragCurrent.level);
+        this.state = State.PARSING;
+        // transmux the MPEG-TS data to ISO-BMFF segments
+        this.stats = data.stats;
+        var currentLevel = this.levels[this.level],
+            details = currentLevel.details,
+            duration = details.totalduration,
+            start = fragCurrent.start,
+            level = fragCurrent.level,
+            sn = fragCurrent.sn,
+            audioCodec = this.config.defaultAudioCodec || currentLevel.audioCodec;
+        if (this.audioCodecSwap) {
+          _logger.logger.log('swapping playlist audio codec');
+          if (audioCodec === undefined) {
+            audioCodec = this.lastAudioCodec;
+          }
+          if (audioCodec) {
+            if (audioCodec.indexOf('mp4a.40.5') !== -1) {
+              audioCodec = 'mp4a.40.2';
+            } else {
+              audioCodec = 'mp4a.40.5';
+            }
+          }
+        }
+        var demuxer = this.demuxer;
+        if (demuxer) {
+          demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
+        }
+      }
+      this.fragLoadError = 0;
+    }
+  }, {
     key: 'onFragLoaded',
     value: function onFragLoaded(data) {
       var fragCurrent = this.fragCurrent;
-      if (this.state === State.FRAG_LOADING && fragCurrent && data.frag.level === fragCurrent.level && data.frag.sn === fragCurrent.sn) {
-        _logger.logger.log('Loaded  ' + fragCurrent.sn + ' of level ' + fragCurrent.level);
+      if ((this.state === State.FRAG_LOADING || this.state === State.PARSING) && fragCurrent && data.frag.level === fragCurrent.level && data.frag.sn === fragCurrent.sn) {
+        _logger.logger.log('Loaded ' + fragCurrent.sn + ' of level ' + fragCurrent.level);
         if (this.fragBitrateTest === true) {
           // switch back to IDLE state ... we just loaded a fragment to determine adequate start bitrate and initialize autoswitch algo
           this.state = State.IDLE;
@@ -2570,35 +2606,7 @@ var StreamController = function (_EventHandler) {
           data.stats.tparsed = data.stats.tbuffered = performance.now();
           this.hls.trigger(_events2.default.FRAG_BUFFERED, { stats: data.stats, frag: fragCurrent });
         } else {
-          this.state = State.PARSING;
-          // transmux the MPEG-TS data to ISO-BMFF segments
-          this.stats = data.stats;
-          var currentLevel = this.levels[this.level],
-              details = currentLevel.details,
-              duration = details.totalduration,
-              start = fragCurrent.start,
-              level = fragCurrent.level,
-              sn = fragCurrent.sn,
-              audioCodec = this.config.defaultAudioCodec || currentLevel.audioCodec;
-          if (this.audioCodecSwap) {
-            _logger.logger.log('swapping playlist audio codec');
-            if (audioCodec === undefined) {
-              audioCodec = this.lastAudioCodec;
-            }
-            if (audioCodec) {
-              if (audioCodec.indexOf('mp4a.40.5') !== -1) {
-                audioCodec = 'mp4a.40.2';
-              } else {
-                audioCodec = 'mp4a.40.5';
-              }
-            }
-          }
           this.pendingAppending = 0;
-          _logger.logger.log('Demuxing ' + sn + ' of [' + details.startSN + ' ,' + details.endSN + '],level ' + level);
-          var demuxer = this.demuxer;
-          if (demuxer) {
-            demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
-          }
         }
       }
       this.fragLoadError = 0;
@@ -3489,7 +3497,7 @@ var AES128Decrypter = function () {
     _classCallCheck(this, AES128Decrypter);
 
     this.key = key;
-    this.iv = initVector;
+    this.iv = new Uint32Array(initVector);
   }
 
   /**
@@ -3645,6 +3653,7 @@ var Decrypter = function () {
     _classCallCheck(this, Decrypter);
 
     this.hls = hls;
+    this.iv = null;
     try {
       var browserCrypto = window ? window.crypto : crypto;
       this.subtle = browserCrypto.subtle || browserCrypto.webkitSubtle;
@@ -3689,10 +3698,15 @@ var Decrypter = function () {
       var view = new DataView(key8.buffer);
       var key = new Uint32Array([view.getUint32(0), view.getUint32(4), view.getUint32(8), view.getUint32(12)]);
 
-      view = new DataView(iv8.buffer);
-      var iv = new Uint32Array([view.getUint32(0), view.getUint32(4), view.getUint32(8), view.getUint32(12)]);
-
-      var decrypter = new _aes128Decrypter2.default(key, iv);
+      if (iv8) {
+        view = new DataView(iv8.buffer);
+        this.iv = new Uint32Array([view.getUint32(0), view.getUint32(4), view.getUint32(8), view.getUint32(12)]);
+      }
+      var decrypter = new _aes128Decrypter2.default(key, this.iv);
+      var ivview = new DataView(data),
+          len = data.byteLength;
+      // save initvector for the next chunk
+      this.iv = new Uint32Array([ivview.getUint32(len - 16), ivview.getUint32(len - 12), ivview.getUint32(len - 8), ivview.getUint32(len - 4)]);
       callback(decrypter.decrypt(data).buffer);
     }
   }, {
@@ -4048,7 +4062,7 @@ var DemuxerInline = function () {
     }
   }, {
     key: 'push',
-    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration) {
+    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
       var demuxer = this.demuxer;
       if (!demuxer) {
         var hls = this.hls;
@@ -4067,7 +4081,7 @@ var DemuxerInline = function () {
         }
         this.demuxer = demuxer;
       }
-      demuxer.push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+      demuxer.push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final);
     }
   }]);
 
@@ -4123,7 +4137,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
         self.demuxer = new _demuxerInline2.default(observer, data.typeSupported, JSON.parse(data.config));
         break;
       case 'demux':
-        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration);
+        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.final);
         break;
       default:
         break;
@@ -4201,6 +4215,7 @@ var Demuxer = function () {
     _classCallCheck(this, Demuxer);
 
     this.hls = hls;
+    this.trail = new Uint8Array(0);
     var typeSupported = {
       mp4: MediaSource.isTypeSupported('video/mp4'),
       mp2t: hls.config.enableMP2TPassThrough && MediaSource.isTypeSupported('video/mp2t')
@@ -4241,28 +4256,56 @@ var Demuxer = function () {
     }
   }, {
     key: 'pushDecrypted',
-    value: function pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration) {
+    value: function pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
       if (this.w) {
         // post fragment payload as transferable objects (no copy)
-        this.w.postMessage({ cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn: sn, duration: duration }, [data]);
+        this.w.postMessage({ cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn: sn, duration: duration, final: final }, [data]);
       } else {
-        this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+        this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final);
       }
     }
   }, {
     key: 'push',
     value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata) {
+      if (data.first) {
+        this.trail = new Uint8Array(0);
+      }
+      var traillen = this.trail.length;
+      // 752 = 4*188. We need number of bytes to be multiplier of 16 to
+      // perform chained AES decryption
+      if (traillen || (data.byteLength + traillen) % 752) {
+        var final = data.final,
+            first = data.first;
+        // add trailing bytes
+        var newlen = data.byteLength + traillen;
+        if (!final) {
+          // at final chunk we sent all pending data
+          newlen -= newlen % 752;
+        }
+        var olddata = new Uint8Array(data);
+        var newdata = new Uint8Array(newlen);
+        newdata.set(this.trail);
+        newdata.set(olddata.subarray(0, newlen - traillen), traillen);
+        this.trail = new Uint8Array(olddata.length + traillen - newlen);
+        if (this.trail.length) {
+          this.trail.set(olddata.subarray(-this.trail.length));
+        }
+        data = newdata.buffer;
+        data.final = final;
+        data.first = first;
+        olddata = newdata = null;
+      }
       if (data.byteLength > 0 && decryptdata != null && decryptdata.key != null && decryptdata.method === 'AES-128') {
         if (this.decrypter == null) {
           this.decrypter = new _decrypter2.default(this.hls);
         }
 
         var localthis = this;
-        this.decrypter.decrypt(data, decryptdata.key, decryptdata.iv, function (decryptedData) {
-          localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+        this.decrypter.decrypt(data, decryptdata.key, data.first && decryptdata.iv, function (decryptedData) {
+          localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.final);
         });
       } else {
-        this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+        this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.final);
       }
     }
   }, {
@@ -4877,6 +4920,7 @@ var TSDemuxer = function () {
     this.remuxerClass = remuxerClass;
     this.config = config;
     this.lastCC = 0;
+    this._clearAllData();
     this.remuxer = new this.remuxerClass(observer, config);
   }
 
@@ -4887,11 +4931,34 @@ var TSDemuxer = function () {
       this._pmtId = -1;
       this.lastAacPTS = null;
       this.aacOverFlow = null;
+      this._clearAllData();
       this._avcTrack = { container: 'video/mp2t', type: 'video', id: -1, sequenceNumber: 0, samples: [], len: 0, nbNalu: 0 };
       this._aacTrack = { container: 'video/mp2t', type: 'audio', id: -1, sequenceNumber: 0, samples: [], len: 0 };
       this._id3Track = { type: 'id3', id: -1, sequenceNumber: 0, samples: [], len: 0 };
       this._txtTrack = { type: 'text', id: -1, sequenceNumber: 0, samples: [], len: 0 };
       this.remuxer.switchLevel();
+    }
+  }, {
+    key: '_clearAvcData',
+    value: function _clearAvcData() {
+      return this._avcData = { data: [], size: 0 };
+    }
+  }, {
+    key: '_clearAacData',
+    value: function _clearAacData() {
+      return this._aacData = { data: [], size: 0 };
+    }
+  }, {
+    key: '_clearID3Data',
+    value: function _clearID3Data() {
+      return this._id3Data = { data: [], size: 0 };
+    }
+  }, {
+    key: '_clearAllData',
+    value: function _clearAllData() {
+      this._clearAvcData();
+      this._clearAacData();
+      this._clearID3Data();
     }
   }, {
     key: 'insertDiscontinuity',
@@ -4904,10 +4971,10 @@ var TSDemuxer = function () {
 
   }, {
     key: 'push',
-    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration) {
-      var avcData,
-          aacData,
-          id3Data,
+    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
+      var avcData = this._avcData,
+          aacData = this._aacData,
+          id3Data = this._id3Data,
           start,
           len = data.length,
           stt,
@@ -4915,7 +4982,6 @@ var TSDemuxer = function () {
           atf,
           offset,
           codecsOnly = this.remuxer.passthrough;
-
       this.audioCodec = audioCodec;
       this.videoCodec = videoCodec;
       this.timeOffset = timeOffset;
@@ -4938,7 +5004,6 @@ var TSDemuxer = function () {
         // flush any partial content
         this.aacOverFlow = null;
       }
-
       var pmtParsed = this.pmtParsed,
           avcId = this._avcTrack.id,
           aacId = this._aacTrack.id,
@@ -4946,6 +5011,7 @@ var TSDemuxer = function () {
 
       // don't parse last TS packet if incomplete
       len -= len % 188;
+
       // loop through TS packets
       for (start = 0; start < len; start += 188) {
         if (data[start] === 0x47) {
@@ -4966,7 +5032,7 @@ var TSDemuxer = function () {
           if (pmtParsed) {
             if (pid === avcId) {
               if (stt) {
-                if (avcData) {
+                if (avcData.size) {
                   this._parseAVCPES(this._parsePES(avcData));
                   if (codecsOnly) {
                     // if we have video codec info AND
@@ -4978,15 +5044,13 @@ var TSDemuxer = function () {
                     }
                   }
                 }
-                avcData = { data: [], size: 0 };
+                avcData = this._clearAvcData();
               }
-              if (avcData) {
-                avcData.data.push(data.subarray(offset, start + 188));
-                avcData.size += start + 188 - offset;
-              }
+              avcData.data.push(data.subarray(offset, start + 188));
+              avcData.size += start + 188 - offset;
             } else if (pid === aacId) {
               if (stt) {
-                if (aacData) {
+                if (aacData.size) {
                   this._parseAACPES(this._parsePES(aacData));
                   if (codecsOnly) {
                     // here we now that we have audio codec info
@@ -4998,23 +5062,19 @@ var TSDemuxer = function () {
                     }
                   }
                 }
-                aacData = { data: [], size: 0 };
+                aacData = this._clearAacData();
               }
-              if (aacData) {
-                aacData.data.push(data.subarray(offset, start + 188));
-                aacData.size += start + 188 - offset;
-              }
+              aacData.data.push(data.subarray(offset, start + 188));
+              aacData.size += start + 188 - offset;
             } else if (pid === id3Id) {
               if (stt) {
-                if (id3Data) {
+                if (id3Data.size) {
                   this._parseID3PES(this._parsePES(id3Data));
                 }
-                id3Data = { data: [], size: 0 };
+                id3Data = this._clearID3Data();
               }
-              if (id3Data) {
-                id3Data.data.push(data.subarray(offset, start + 188));
-                id3Data.size += start + 188 - offset;
-              }
+              id3Data.data.push(data.subarray(offset, start + 188));
+              id3Data.size += start + 188 - offset;
             }
           } else {
             if (stt) {
@@ -5035,16 +5095,21 @@ var TSDemuxer = function () {
         }
       }
       // parse last PES packet
-      if (avcData) {
+      if (final && avcData.size) {
         this._parseAVCPES(this._parsePES(avcData));
+        this._clearAvcData();
       }
-      if (aacData) {
+      if (final && aacData.size) {
         this._parseAACPES(this._parsePES(aacData));
+        this._clearAacData();
       }
-      if (id3Data) {
+      if (final && id3Data.size) {
         this._parseID3PES(this._parsePES(id3Data));
+        this._clearID3Data();
       }
-      this.remux(null);
+      if (final) {
+        this.remux(null);
+      }
     }
   }, {
     key: 'remux',
@@ -5372,6 +5437,7 @@ var TSDemuxer = function () {
         //        samples already appended (we already found a keyframe in this fragment) OR fragment is contiguous
         if (key === true || track.sps && (samples.length || this.contiguous)) {
           avcSample = { units: { units: units2, length: length }, pts: pes.pts, dts: pes.dts, key: key };
+          // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
           samples.push(avcSample);
           track.len += length;
           track.nbNalu += units2.length;
@@ -5604,6 +5670,7 @@ var TSDemuxer = function () {
           stamp = pts + frameIndex * frameDuration;
           //logger.log(`AAC frame, offset/length/total/pts:${offset+headerLength}/${frameLength}/${data.byteLength}/${(stamp/90).toFixed(0)}`);
           aacSample = { unit: data.subarray(offset + headerLength, offset + headerLength + frameLength), pts: stamp, dts: stamp };
+          // logger.log(`aacSample ${aacSample.unit.length} ${stamp}`);
           track.samples.push(aacSample);
           track.len += frameLength;
           offset += frameLength + headerLength;
@@ -5866,6 +5933,8 @@ module.exports = {
   FRAG_LOAD_PROGRESS: 'hlsFragLoadProgress',
   // Identifier for fragment load aborting for emergency switch down - data: {frag : fragment object}
   FRAG_LOAD_EMERGENCY_ABORTED: 'hlsFragLoadEmergencyAborted',
+  // fired when a fragment chunk loading is completed - data: { frag : fragment object, payload : fragment payload}
+  FRAG_CHUNK_LOADED: 'hlsFragChunkLoaded',
   // fired when a fragment loading is completed - data: { frag : fragment object, payload : fragment payload, stats : { trequest, tfirst, tload, length}}
   FRAG_LOADED: 'hlsFragLoaded',
   // fired when Init Segment has been extracted from fragment - data: { moov : moov MP4 box, codecs : codecs found while parsing fragment}
@@ -6685,6 +6754,7 @@ var FragmentLoader = function (_EventHandler) {
         this.loader.destroy();
         this.loader = null;
       }
+      this.firstChunk = true;
       _eventHandler2.default.prototype.destroy.call(this);
     }
   }, {
@@ -6693,18 +6763,30 @@ var FragmentLoader = function (_EventHandler) {
       var frag = data.frag;
       this.frag = frag;
       this.frag.loaded = 0;
+      this.firstChunk = true;
       var config = this.hls.config;
       frag.loader = this.loader = typeof config.fLoader !== 'undefined' ? new config.fLoader(config) : new config.loader(config);
-      this.loader.load(frag.url, 'arraybuffer', this.loadsuccess.bind(this), this.loaderror.bind(this), this.loadtimeout.bind(this), config.fragLoadingTimeOut, 1, 0, this.loadprogress.bind(this), frag);
+      this.loader.load(frag.url, 'arraybuffer', this.loadsuccess.bind(this), this.loaderror.bind(this), this.loadtimeout.bind(this), config.fragLoadingTimeOut, 1, 0, this.loadprogress.bind(this), frag, this.loadchunk.bind(this));
+    }
+  }, {
+    key: 'loadchunk',
+    value: function loadchunk(event, stats) {
+      var payload = event.currentTarget.response;
+      payload.first = this.firstChunk;
+      this.firstChunk = false;
+      this.hls.trigger(_events2.default.FRAG_CHUNK_LOADED, { payload: payload, frag: this.frag, stats: stats });
     }
   }, {
     key: 'loadsuccess',
     value: function loadsuccess(event, stats) {
       var payload = event.currentTarget.response;
+      payload.final = true;
       stats.length = payload.byteLength;
+      this.hls.trigger(_events2.default.FRAG_LOADED, { frag: this.frag, stats: stats });
+      this.loadchunk(event, stats);
+      this.firstChunk = true;
       // detach fragment loader on load success
       this.frag.loader = undefined;
-      this.hls.trigger(_events2.default.FRAG_LOADED, { payload: payload, frag: this.frag, stats: stats });
     }
   }, {
     key: 'loaderror',
@@ -8474,7 +8556,7 @@ var PassThroughRemuxer = function () {
     }
   }, {
     key: 'remux',
-    value: function remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, rawData) {
+    value: function remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, contiguous, rawData) {
       var observer = this.observer;
       // generate Init Segment if needed
       if (!this.ISGenerated) {

@@ -10,6 +10,7 @@ class Decrypter {
 
   constructor(hls) {
     this.hls = hls;
+    this.iv = null;
     try {
       const browserCrypto = window ? window.crypto : crypto;
       this.subtle = browserCrypto.subtle || browserCrypto.webkitSubtle;
@@ -57,15 +58,24 @@ class Decrypter {
         view.getUint32(12)
     ]);
 
-    view = new DataView(iv8.buffer);
-    var iv = new Uint32Array([
-        view.getUint32(0),
-        view.getUint32(4),
-        view.getUint32(8),
-        view.getUint32(12)
+    if (iv8) {
+      view = new DataView(iv8.buffer);
+      this.iv = new Uint32Array([
+          view.getUint32(0),
+          view.getUint32(4),
+          view.getUint32(8),
+          view.getUint32(12)
+      ]);
+    }
+    var decrypter = new AES128Decrypter(key, this.iv);
+    var ivview = new DataView(data), len = data.byteLength;
+    // save initvector for the next chunk
+    this.iv = new Uint32Array([
+        ivview.getUint32(len-16),
+        ivview.getUint32(len-12),
+        ivview.getUint32(len-8),
+        ivview.getUint32(len-4)
     ]);
-
-    var decrypter = new AES128Decrypter(key, iv);
     callback(decrypter.decrypt(data).buffer);
   }
 

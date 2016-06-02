@@ -42,7 +42,7 @@ class AES128Decrypter {
 
   constructor(key, initVector) {
     this.key = key;
-    this.iv = initVector;
+    this.iv = new Uint32Array(initVector);
   }
 
   /**

@@ -23,6 +23,7 @@
     this.remuxerClass = remuxerClass;
     this.config = config;
     this.lastCC = 0;
+    this._clearAllData();
     this.remuxer = new this.remuxerClass(observer, config);
   }
 
@@ -40,11 +41,30 @@
     this._pmtId = -1;
     this.lastAacPTS = null;
     this.aacOverFlow = null;
+    this._clearAllData();
     this._avcTrack = {container : 'video/mp2t', type: 'video', id :-1, sequenceNumber: 0, samples : [], len : 0, nbNalu : 0};
     this._aacTrack = {container : 'video/mp2t', type: 'audio', id :-1, sequenceNumber: 0, samples : [], len : 0};
     this._id3Track = {type: 'id3', id :-1, sequenceNumber: 0, samples : [], len : 0};
     this._txtTrack = {type: 'text', id: -1, sequenceNumber: 0, samples: [], len: 0};
     this.remuxer.switchLevel();
+  }
+
+  _clearAvcData(){
+    return (this._avcData = {data: [], size: 0});
+  }
+
+  _clearAacData(){
+    return (this._aacData = {data: [], size: 0});
+  }
+
+  _clearID3Data(){
+    return (this._id3Data = {data: [], size: 0});
+  }
+
+  _clearAllData(){
+    this._clearAvcData();
+    this._clearAacData();
+    this._clearID3Data();
   }
 
   insertDiscontinuity() {
@@ -53,11 +73,10 @@
   }
 
   // feed incoming data to the front of the parsing pipeline
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration) {
-    var avcData, aacData, id3Data,
-        start, len = data.length, stt, pid, atf, offset,
-        codecsOnly = this.remuxer.passthrough;
-
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration,final){
+    var avcData = this._avcData, aacData = this._aacData,
+        id3Data = this._id3Data, start, len = data.length, stt, pid, atf,
+        offset, codecsOnly = this.remuxer.passthrough;
     this.audioCodec = audioCodec;
     this.videoCodec = videoCodec;
     this.timeOffset = timeOffset;
@@ -76,18 +95,18 @@
     }
     this.lastSN = sn;
 
-    if(!this.contiguous) {
+    if (!this.contiguous) {
       // flush any partial content
       this.aacOverFlow = null;
     }
-
     var pmtParsed = this.pmtParsed,
         avcId = this._avcTrack.id,
         aacId = this._aacTrack.id,
         id3Id = this._id3Track.id;
 
     // don't parse last TS packet if incomplete
-    len -= len % 188;
+    len -= len%188;
+
     // loop through TS packets
     for (start = 0; start < len; start += 188) {
       if (data[start] === 0x47) {
@@ -108,7 +127,7 @@
         if (pmtParsed) {
           if (pid === avcId) {
             if (stt) {
-              if (avcData) {
+              if (avcData.size) {
                 this._parseAVCPES(this._parsePES(avcData));
                 if (codecsOnly) {
                   // if we have video codec info AND
@@ -120,15 +139,13 @@
                   }
                 }
               }
-              avcData = {data: [], size: 0};
+              avcData = this._clearAvcData();
             }
-            if (avcData) {
-              avcData.data.push(data.subarray(offset, start + 188));
-              avcData.size += start + 188 - offset;
-            }
+            avcData.data.push(data.subarray(offset, start + 188));
+            avcData.size += start + 188 - offset;
           } else if (pid === aacId) {
             if (stt) {
-              if (aacData) {
+              if (aacData.size) {
                 this._parseAACPES(this._parsePES(aacData));
                 if (codecsOnly) {
                   // here we now that we have audio codec info
@@ -140,23 +157,19 @@
                   }
                 }
               }
-              aacData = {data: [], size: 0};
+              aacData = this._clearAacData();
             }
-            if (aacData) {
-              aacData.data.push(data.subarray(offset, start + 188));
-              aacData.size += start + 188 - offset;
-            }
+            aacData.data.push(data.subarray(offset, start + 188));
+            aacData.size += start + 188 - offset;
           } else if (pid === id3Id) {
             if (stt) {
-              if (id3Data) {
+              if (id3Data.size) {
                 this._parseID3PES(this._parsePES(id3Data));
               }
-              id3Data = {data: [], size: 0};
+              id3Data = this._clearID3Data();
             }
-            if (id3Data) {
-              id3Data.data.push(data.subarray(offset, start + 188));
-              id3Data.size += start + 188 - offset;
-            }
+            id3Data.data.push(data.subarray(offset, start + 188));
+            id3Data.size += start + 188 - offset;
           }
         } else {
           if (stt) {
@@ -177,16 +190,20 @@
       }
     }
     // parse last PES packet
-    if (avcData) {
+    if (final && avcData.size) {
       this._parseAVCPES(this._parsePES(avcData));
+      this._clearAvcData();
     }
-    if (aacData) {
+    if (final && aacData.size) {
       this._parseAACPES(this._parsePES(aacData));
+      this._clearAacData();
     }
-    if (id3Data) {
+    if (final && id3Data.size) {
       this._parseID3PES(this._parsePES(id3Data));
+      this._clearID3Data();
     }
-    this.remux(null);
+    if (final) {
+      this.remux(null); }
   }
 
   remux(data) {
@@ -500,6 +517,7 @@
       if (key === true ||
           (track.sps && (samples.length || this.contiguous))) {
         avcSample = {units: { units : units2, length : length}, pts: pes.pts, dts: pes.dts, key: key};
+        // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
         samples.push(avcSample);
         track.len += length;
         track.nbNalu += units2.length;
@@ -716,6 +734,7 @@
         stamp = pts + frameIndex * frameDuration;
         //logger.log(`AAC frame, offset/length/total/pts:${offset+headerLength}/${frameLength}/${data.byteLength}/${(stamp/90).toFixed(0)}`);
         aacSample = {unit: data.subarray(offset + headerLength, offset + headerLength + frameLength), pts: stamp, dts: stamp};
+        // logger.log(`aacSample ${aacSample.unit.length} ${stamp}`);
         track.samples.push(aacSample);
         track.len += frameLength;
         offset += frameLength + headerLength;

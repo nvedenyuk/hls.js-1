@@ -8,6 +8,7 @@ class Demuxer {
 
   constructor(hls) {
     this.hls = hls;
+    this.trail = new Uint8Array(0);
     var typeSupported = {
       mp4 : MediaSource.isTypeSupported('video/mp4'),
       mp2t : hls.config.enableMP2TPassThrough && MediaSource.isTypeSupported('video/mp2t')
@@ -45,27 +46,52 @@ class Demuxer {
     }
   }
 
-  pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration) {
+  pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
     if (this.w) {
       // post fragment payload as transferable objects (no copy)
-      this.w.postMessage({cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn : sn, duration: duration}, [data]);
+      this.w.postMessage({cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn : sn, duration: duration, final: final}, [data]);
     } else {
-      this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+      this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final);
     }
   }
 
   push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata) {
+    if (data.first) {
+      this.trail = new Uint8Array(0); }
+    var traillen = this.trail.length;
+    // 752 = 4*188. We need number of bytes to be multiplier of 16 to
+    // perform chained AES decryption
+    if (traillen || (data.byteLength+traillen)%752) {
+      var final = data.final, first = data.first;
+      // add trailing bytes
+      var newlen = data.byteLength+traillen;
+      if (!final) {
+        // at final chunk we sent all pending data
+        newlen -= newlen%752;
+      }
+      var olddata = new Uint8Array(data);
+      var newdata = new Uint8Array(newlen);
+      newdata.set(this.trail);
+      newdata.set(olddata.subarray(0, newlen-traillen), traillen);
+      this.trail = new Uint8Array(olddata.length+traillen-newlen);
+      if (this.trail.length) {
+        this.trail.set(olddata.subarray(-this.trail.length)); }
+      data = newdata.buffer;
+      data.final = final;
+      data.first = first;
+      olddata = newdata = null;
+    }
     if ((data.byteLength > 0) && (decryptdata != null) && (decryptdata.key != null) && (decryptdata.method === 'AES-128')) {
       if (this.decrypter == null) {
         this.decrypter = new Decrypter(this.hls);
       }
 
       var localthis = this;
-      this.decrypter.decrypt(data, decryptdata.key, decryptdata.iv, function(decryptedData){
-        localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+      this.decrypter.decrypt(data, decryptdata.key, data.first&&decryptdata.iv, function(decryptedData){
+        localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.final);
       });
     } else {
-      this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration);
+      this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.final);
     }
   }
 

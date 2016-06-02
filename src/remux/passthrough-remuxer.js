@@ -23,7 +23,7 @@ class PassThroughRemuxer {
     this.ISGenerated = false;
   }
 
-  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset,rawData) {
+  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset,contiguous,rawData) {
     var observer = this.observer;
     // generate Init Segment if needed
     if (!this.ISGenerated) {
