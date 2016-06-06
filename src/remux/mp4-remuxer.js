@@ -35,7 +35,11 @@ class MP4Remuxer {
     this.ISGenerated = false;
   }
 
-  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous) {
+  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, data, final) {
+
+    // dummy
+    data = null;
+
     // generate Init Segment if needed
     if (!this.ISGenerated) {
       this.generateIS(audioTrack,videoTrack,timeOffset);
@@ -75,7 +79,9 @@ class MP4Remuxer {
       this.remuxText(textTrack,timeOffset);
     }
     //notify end of parsing
-    this.observer.trigger(Event.FRAG_PARSED);
+    if (final) {
+      this.observer.trigger(Event.FRAG_PARSED);
+    }
   }
 
   generateIS(audioTrack,videoTrack,timeOffset) {

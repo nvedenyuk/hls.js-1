@@ -2183,6 +2183,7 @@ var StreamController = function (_EventHandler) {
         frag.loadIdx = this.fragLoadIdx;
         this.fragCurrent = frag;
         this.startFragRequested = true;
+        this.fragTimeOffset = frag.start;
         hls.trigger(_events2.default.FRAG_LOADING, { frag: frag });
         this.state = State.FRAG_LOADING;
         return true;
@@ -2568,7 +2569,7 @@ var StreamController = function (_EventHandler) {
         var currentLevel = this.levels[this.level],
             details = currentLevel.details,
             duration = details.totalduration,
-            start = fragCurrent.start,
+            start = this.fragTimeOffset,
             level = fragCurrent.level,
             sn = fragCurrent.sn,
             audioCodec = this.config.defaultAudioCodec || currentLevel.audioCodec;
@@ -2705,6 +2706,10 @@ var StreamController = function (_EventHandler) {
             frag = this.fragCurrent;
 
         _logger.logger.log('parsed ' + data.type + ',PTS:[' + data.startPTS.toFixed(3) + ',' + data.endPTS.toFixed(3) + '],DTS:[' + data.startDTS.toFixed(3) + '/' + data.endDTS.toFixed(3) + '],nb:' + data.nb);
+        if (data.type === 'video') {
+          // sync on video chunks
+          this.fragTimeOffset += data.endDTS - data.startDTS;
+        }
 
         var drift = _levelHelper2.default.updateFragPTS(level.details, frag.sn, data.startPTS, data.endPTS),
             hls = this.hls;
@@ -5095,26 +5100,129 @@ var TSDemuxer = function () {
         }
       }
       // parse last PES packet
-      if (final && avcData.size) {
-        this._parseAVCPES(this._parsePES(avcData));
-        this._clearAvcData();
-      }
-      if (final && aacData.size) {
-        this._parseAACPES(this._parsePES(aacData));
-        this._clearAacData();
-      }
-      if (final && id3Data.size) {
-        this._parseID3PES(this._parsePES(id3Data));
-        this._clearID3Data();
-      }
       if (final) {
-        this.remux(null);
+        if (avcData.size) {
+          this._parseAVCPES(this._parsePES(avcData));
+          this._clearAvcData();
+        }
+        if (aacData.size) {
+          this._parseAACPES(this._parsePES(aacData));
+          this._clearAacData();
+        }
+        if (id3Data.size) {
+          this._parseID3PES(this._parsePES(id3Data));
+          this._clearID3Data();
+        }
       }
+      this.remux(null, final);
     }
   }, {
     key: 'remux',
-    value: function remux(data) {
-      this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, this.timeOffset, this.contiguous, data);
+    value: function remux(data, final) {
+      var _saveAVCSamples = [],
+          _saveAACSamples = [],
+          _saveID3Samples = [],
+          _saveTextSamples = [];
+      function recalcTrack(track) {
+        if (track.hasOwnProperty('nbNalu')) {
+          track.nbNalu = 0;
+        }
+        track.len = 0;
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
+
+        try {
+          for (var _iterator = track.samples[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var sample = _step.value;
+
+            track.len += ((sample.units && sample.units.length) | 0) + ((sample.unit && sample.unit.length) | 0) + (sample.len | 0) + ((sample.bytes && sample.bytes.length) | 0);
+            if (track.hasOwnProperty('nbNalu')) {
+              track.nbNalu += sample.units.units.length;
+            }
+          }
+        } catch (err) {
+          _didIteratorError = true;
+          _iteratorError = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion && _iterator.return) {
+              _iterator.return();
+            }
+          } finally {
+            if (_didIteratorError) {
+              throw _iteratorError;
+            }
+          }
+        }
+      }
+      function filterSamples(track, end, _save) {
+        var _new = [];
+        var _iteratorNormalCompletion2 = true;
+        var _didIteratorError2 = false;
+        var _iteratorError2 = undefined;
+
+        try {
+          for (var _iterator2 = track.samples[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+            var sample = _step2.value;
+
+            var sampleTime = sample.dts || sample.pts;
+            if (sampleTime <= end) {
+              _new.push(sample);
+            } else {
+              _save.push(sample);
+            }
+          }
+        } catch (err) {
+          _didIteratorError2 = true;
+          _iteratorError2 = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion2 && _iterator2.return) {
+              _iterator2.return();
+            }
+          } finally {
+            if (_didIteratorError2) {
+              throw _iteratorError2;
+            }
+          }
+        }
+
+        track.samples = _new;
+        recalcTrack(track);
+      }
+      if (!final) {
+        var samples = this._avcTrack.samples;
+        // save samples and break by GOP
+        if (!samples.length) {
+          return;
+        }
+        var maxk = 0;
+        for (var i = 0; i < samples.length; i++) {
+          if (samples[i].key) {
+            maxk = i;
+          }
+        }
+        if (!maxk) {
+          return;
+        }
+        _saveAVCSamples = samples.slice(maxk);
+        this._avcTrack.samples = samples.slice(0, maxk);
+        var endDts = this._avcTrack.samples[maxk - 1].dts;
+        recalcTrack(this._avcTrack);
+        filterSamples(this._aacTrack, endDts, _saveAACSamples);
+        filterSamples(this._id3Track, endDts, _saveID3Samples);
+        filterSamples(this._txtTrack, endDts, _saveTextSamples);
+      }
+      this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, this.timeOffset, this.contiguous, data, final);
+      this._avcTrack.samples = _saveAVCSamples;
+      this._aacTrack.samples = _saveAACSamples;
+      this._id3Track.samples = _saveID3Samples;
+      this._txtTrack.samples = _saveTextSamples;
+      recalcTrack(this._avcTrack);
+      recalcTrack(this._aacTrack);
+      recalcTrack(this._id3Track);
+      recalcTrack(this._txtTrack);
     }
   }, {
     key: 'destroy',
@@ -6349,7 +6457,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-1';
+      return '0.6.1-2';
     }
   }, {
     key: 'Events',
@@ -7904,7 +8012,11 @@ var MP4Remuxer = function () {
     }
   }, {
     key: 'remux',
-    value: function remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, contiguous) {
+    value: function remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, contiguous, data, final) {
+
+      // dummy
+      data = null;
+
       // generate Init Segment if needed
       if (!this.ISGenerated) {
         this.generateIS(audioTrack, videoTrack, timeOffset);
@@ -7944,7 +8056,9 @@ var MP4Remuxer = function () {
         this.remuxText(textTrack, timeOffset);
       }
       //notify end of parsing
-      this.observer.trigger(_events2.default.FRAG_PARSED);
+      if (final) {
+        this.observer.trigger(_events2.default.FRAG_PARSED);
+      }
     }
   }, {
     key: 'generateIS',

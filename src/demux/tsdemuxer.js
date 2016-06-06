@@ -190,24 +190,83 @@
       }
     }
     // parse last PES packet
-    if (final && avcData.size) {
-      this._parseAVCPES(this._parsePES(avcData));
-      this._clearAvcData();
-    }
-    if (final && aacData.size) {
-      this._parseAACPES(this._parsePES(aacData));
-      this._clearAacData();
-    }
-    if (final && id3Data.size) {
-      this._parseID3PES(this._parsePES(id3Data));
-      this._clearID3Data();
-    }
     if (final) {
-      this.remux(null); }
+      if (avcData.size) {
+        this._parseAVCPES(this._parsePES(avcData));
+        this._clearAvcData();
+      }
+      if (aacData.size) {
+        this._parseAACPES(this._parsePES(aacData));
+        this._clearAacData();
+      }
+      if (id3Data.size) {
+        this._parseID3PES(this._parsePES(id3Data));
+        this._clearID3Data();
+      }
+    }
+    this.remux(null, final);
   }
 
-  remux(data) {
-    this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, this.timeOffset, this.contiguous, data);
+  remux(data, final) {
+    var _saveAVCSamples = [], _saveAACSamples = [], _saveID3Samples = [],
+        _saveTextSamples = [];
+    function recalcTrack(track) {
+      if (track.hasOwnProperty('nbNalu')) {
+        track.nbNalu = 0;
+      }
+      track.len = 0;
+      for (var sample of track.samples) {
+        track.len += ((sample.units&&sample.units.length)|0)+
+          ((sample.unit&&sample.unit.length)|0)+(sample.len|0)+((sample.bytes&&sample.bytes.length)|0);
+        if (track.hasOwnProperty('nbNalu')) {
+          track.nbNalu += sample.units.units.length;
+        }
+      }
+    }
+    function filterSamples(track, end, _save) {
+      var _new = [];
+      for (var sample of track.samples) {
+        var sampleTime = sample.dts||sample.pts;
+        if (sampleTime<=end) {
+          _new.push(sample);
+        } else {
+          _save.push(sample);
+        }
+      }
+      track.samples = _new;
+      recalcTrack(track);
+    }
+    if (!final) {
+      var samples = this._avcTrack.samples;
+      // save samples and break by GOP
+      if (!samples.length) {
+        return; }
+      var maxk = 0;
+      for (var i=0; i<samples.length; i++) {
+        if (samples[i].key) {
+          maxk = i;
+        }
+      }
+      if (!maxk) {
+        return;
+      }
+      _saveAVCSamples = samples.slice(maxk);
+      this._avcTrack.samples = samples.slice(0, maxk);
+      var endDts = this._avcTrack.samples[maxk-1].dts;
+      recalcTrack(this._avcTrack);
+      filterSamples(this._aacTrack, endDts, _saveAACSamples);
+      filterSamples(this._id3Track, endDts, _saveID3Samples);
+      filterSamples(this._txtTrack, endDts, _saveTextSamples);
+    }
+    this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, this.timeOffset, this.contiguous, data, final);
+    this._avcTrack.samples = _saveAVCSamples;
+    this._aacTrack.samples = _saveAACSamples;
+    this._id3Track.samples = _saveID3Samples;
+    this._txtTrack.samples = _saveTextSamples;
+    recalcTrack(this._avcTrack);
+    recalcTrack(this._aacTrack);
+    recalcTrack(this._id3Track);
+    recalcTrack(this._txtTrack);
   }
 
   destroy() {
