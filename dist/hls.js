@@ -2586,6 +2586,10 @@ var StreamController = function (_EventHandler) {
             }
           }
         }
+        _logger.logger.log('Demuxing ' + sn + ' of [' + details.startSN + ' ,' + details.endSN + '],level ' + level);
+        if (data.payload.first) {
+          this.pendingAppending = 0;
+        }
         var demuxer = this.demuxer;
         if (demuxer) {
           demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
@@ -2606,8 +2610,6 @@ var StreamController = function (_EventHandler) {
           this.startFragRequested = false;
           data.stats.tparsed = data.stats.tbuffered = performance.now();
           this.hls.trigger(_events2.default.FRAG_BUFFERED, { stats: data.stats, frag: fragCurrent });
-        } else {
-          this.pendingAppending = 0;
         }
       }
       this.fragLoadError = 0;
@@ -6457,7 +6459,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-2';
+      return '0.6.1-3';
     }
   }, {
     key: 'Events',
@@ -8163,30 +8165,26 @@ var MP4Remuxer = function () {
         // if not contiguous, let's use target timeOffset
         nextAvcDts = timeOffset * pesTimeScale;
       }
-
       // compute first DTS and last DTS, normalize them against reference value
       var sample = inputSamples[0];
       firstDTS = Math.max(this._PTSNormalize(sample.dts, nextAvcDts) - this._initDTS, 0);
       firstPTS = Math.max(this._PTSNormalize(sample.pts, nextAvcDts) - this._initDTS, 0);
 
-      // check timestamp continuity accross consecutive fragments (this is to remove inter-fragment gap/hole)
+      // check timestamp continuity (to remove inter-fragment gap/hole)
       var delta = Math.round((firstDTS - nextAvcDts) / 90);
-      // if fragment are contiguous, detect hole/overlapping between fragments
-      if (contiguous) {
-        if (delta) {
-          if (delta > 1) {
-            _logger.logger.log('AVC:' + delta + ' ms hole between fragments detected,filling it');
-          } else if (delta < -1) {
-            _logger.logger.log('AVC:' + -delta + ' ms overlapping between fragments detected');
-          }
-          // remove hole/gap : set DTS to next expected DTS
-          firstDTS = nextAvcDts;
-          inputSamples[0].dts = firstDTS + this._initDTS;
-          // offset PTS as well, ensure that PTS is smaller or equal than new DTS
-          firstPTS = Math.max(firstPTS - delta, nextAvcDts);
-          inputSamples[0].pts = firstPTS + this._initDTS;
-          _logger.logger.log('Video/PTS/DTS adjusted: ' + firstPTS + '/' + firstDTS + ',delta:' + delta);
+      if (delta) {
+        if (delta > 1) {
+          _logger.logger.log('AVC:' + delta + ' ms hole between fragments detected,filling it');
+        } else if (delta < -1) {
+          _logger.logger.log('AVC:' + -delta + ' ms overlapping between fragments detected');
         }
+        // remove hole/gap : set DTS to next expected DTS
+        firstDTS = nextAvcDts;
+        inputSamples[0].dts = firstDTS + this._initDTS;
+        // offset PTS as well, ensure that PTS is smaller or equal than new DTS
+        firstPTS = Math.max(firstPTS - delta * 90, nextAvcDts);
+        inputSamples[0].pts = firstPTS + this._initDTS;
+        _logger.logger.log('Video/PTS/DTS adjusted: ' + firstPTS + '/' + firstDTS + ',delta:' + delta);
       }
       nextDTS = firstDTS;
 

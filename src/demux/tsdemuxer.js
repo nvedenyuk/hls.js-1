@@ -420,12 +420,12 @@
     units.forEach(unit => {
       switch(unit.type) {
         //NDR
-         case 1:
-           push = true;
-           if(debug) {
+        case 1:
+          push = true;
+          if(debug) {
             debugString += 'NDR ';
-           }
-           break;
+          }
+          break;
         //IDR
         case 5:
           push = true;

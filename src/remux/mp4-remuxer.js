@@ -168,9 +168,9 @@ class MP4Remuxer {
         inputSamples = track.samples,
         outputSamples = [];
 
-  // PTS is coded on 33bits, and can loop from -2^32 to 2^32
-  // PTSNormalize will make PTS/DTS value monotonic, we use last known DTS value as reference value
-   let nextAvcDts;
+    // PTS is coded on 33bits, and can loop from -2^32 to 2^32
+    // PTSNormalize will make PTS/DTS value monotonic, we use last known DTS value as reference value
+    let nextAvcDts;
     if (contiguous) {
       // if parsed fragment is contiguous with last one, let's use last DTS value as reference
       nextAvcDts = this.nextAvcDts;
@@ -178,30 +178,26 @@ class MP4Remuxer {
       // if not contiguous, let's use target timeOffset
       nextAvcDts = timeOffset*pesTimeScale;
     }
-
     // compute first DTS and last DTS, normalize them against reference value
     let sample = inputSamples[0];
     firstDTS =  Math.max(this._PTSNormalize(sample.dts,nextAvcDts) - this._initDTS,0);
     firstPTS =  Math.max(this._PTSNormalize(sample.pts,nextAvcDts) - this._initDTS,0);
 
-    // check timestamp continuity accross consecutive fragments (this is to remove inter-fragment gap/hole)
+    // check timestamp continuity (to remove inter-fragment gap/hole)
     let delta = Math.round((firstDTS - nextAvcDts) / 90);
-    // if fragment are contiguous, detect hole/overlapping between fragments
-    if (contiguous) {
-      if (delta) {
-        if (delta > 1) {
-          logger.log(`AVC:${delta} ms hole between fragments detected,filling it`);
-        } else if (delta < -1) {
-          logger.log(`AVC:${(-delta)} ms overlapping between fragments detected`);
-        }
-        // remove hole/gap : set DTS to next expected DTS
-        firstDTS = nextAvcDts;
-        inputSamples[0].dts = firstDTS + this._initDTS;
-        // offset PTS as well, ensure that PTS is smaller or equal than new DTS
-        firstPTS = Math.max(firstPTS - delta, nextAvcDts);
-        inputSamples[0].pts = firstPTS + this._initDTS;
-        logger.log(`Video/PTS/DTS adjusted: ${firstPTS}/${firstDTS},delta:${delta}`);
+    if (delta) {
+      if (delta > 1) {
+        logger.log(`AVC:${delta} ms hole between fragments detected,filling it`);
+      } else if (delta < -1) {
+        logger.log(`AVC:${(-delta)} ms overlapping between fragments detected`);
       }
+      // remove hole/gap : set DTS to next expected DTS
+      firstDTS = nextAvcDts;
+      inputSamples[0].dts = firstDTS + this._initDTS;
+      // offset PTS as well, ensure that PTS is smaller or equal than new DTS
+      firstPTS = Math.max(firstPTS - delta*90, nextAvcDts);
+      inputSamples[0].pts = firstPTS + this._initDTS;
+      logger.log(`Video/PTS/DTS adjusted: ${firstPTS}/${firstDTS},delta:${delta}`);
     }
     nextDTS = firstDTS;
 

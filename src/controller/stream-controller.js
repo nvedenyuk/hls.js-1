@@ -847,6 +847,10 @@ class StreamController extends EventHandler {
           }
         }
       }
+      logger.log(`Demuxing ${sn} of [${details.startSN} ,${details.endSN}],level ${level}`);
+      if (data.payload.first) {
+        this.pendingAppending = 0;
+      }
       let demuxer = this.demuxer;
       if (demuxer) {
         demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
@@ -869,9 +873,6 @@ class StreamController extends EventHandler {
         this.startFragRequested = false;
         data.stats.tparsed = data.stats.tbuffered = performance.now();
         this.hls.trigger(Event.FRAG_BUFFERED, {stats: data.stats, frag: fragCurrent});
-      }
-      else {
-        this.pendingAppending = 0;
       }
     }
     this.fragLoadError = 0;
