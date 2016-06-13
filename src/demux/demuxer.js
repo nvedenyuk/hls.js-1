@@ -57,12 +57,14 @@ class Demuxer {
 
   push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata) {
     if (data.first) {
-      this.trail = new Uint8Array(0); }
+      this.trail = new Uint8Array(0);
+      this.trail.first = true;
+    }
     var traillen = this.trail.length;
     // 752 = 4*188. We need number of bytes to be multiplier of 16 to
     // perform chained AES decryption
     if (traillen || (data.byteLength+traillen)%752) {
-      var final = data.final, first = data.first;
+      var final = data.final, first = data.first||this.trail.first||false;
       // add trailing bytes
       var newlen = data.byteLength+traillen;
       if (!final) {
@@ -71,15 +73,29 @@ class Demuxer {
       }
       var olddata = new Uint8Array(data);
       var newdata = new Uint8Array(newlen);
-      newdata.set(this.trail);
-      newdata.set(olddata.subarray(0, newlen-traillen), traillen);
-      this.trail = new Uint8Array(olddata.length+traillen-newlen);
-      if (this.trail.length) {
-        this.trail.set(olddata.subarray(-this.trail.length)); }
+      var newtrail = new Uint8Array(data.byteLength+traillen-newlen);
+      if (newlen) {
+        newdata.set(this.trail);
+        newdata.set(olddata.subarray(0, newlen-traillen), traillen);
+      }
+      if (newtrail.length) {
+        if (newlen) {
+          newtrail.set(olddata.subarray(-newtrail.length));
+        } else {
+          newtrail.set(this.trail);
+          newtrail.set(olddata, traillen);
+          newtrail.first = first;
+        }
+      }
+      olddata = null;
+      this.trail = newtrail;
+      if (!newdata.length) {
+        return;
+      }
       data = newdata.buffer;
       data.final = final;
       data.first = first;
-      olddata = newdata = null;
+      newdata = null;
     }
     if ((data.byteLength > 0) && (decryptdata != null) && (decryptdata.key != null) && (decryptdata.method === 'AES-128')) {
       if (this.decrypter == null) {
