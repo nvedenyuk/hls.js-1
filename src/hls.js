@@ -61,7 +61,7 @@ class Hls {
           liveMaxLatencyDurationCount: Infinity,
           liveSyncDuration: undefined,
           liveMaxLatencyDuration: undefined,
-          maxMaxBufferLength: 600,
+          maxMaxBufferLength: 40,
           enableWorker: true,
           enableSoftwareAES: true,
           manifestLoadingTimeOut: 10000,

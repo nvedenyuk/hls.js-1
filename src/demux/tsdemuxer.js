@@ -65,6 +65,7 @@
     this._clearAvcData();
     this._clearAacData();
     this._clearID3Data();
+    this.keyFrames = 0;
   }
 
   insertDiscontinuity() {
@@ -203,6 +204,10 @@
         this._parseID3PES(this._parsePES(id3Data));
         this._clearID3Data();
       }
+      if (!this.keyFrames && avcId!==-1) {
+        this.observer.trigger(Event.ERROR, {type : ErrorTypes.MEDIA_ERROR, details: ErrorDetails.FRAG_PARSING_ERROR, fatal: false, reason: 'No keyframes in segment '+sn});
+      }
+      this.keyFrames = 0;
     }
     this.remux(null, final);
   }
@@ -576,6 +581,9 @@
       if (key === true ||
           (track.sps && (samples.length || this.contiguous))) {
         avcSample = {units: { units : units2, length : length}, pts: pes.pts, dts: pes.dts, key: key};
+        if (key) {
+          this.keyFrames++;
+        }
         // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
         samples.push(avcSample);
         track.len += length;

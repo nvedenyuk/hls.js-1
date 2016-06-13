@@ -4980,6 +4980,7 @@ var TSDemuxer = function () {
       this._clearAvcData();
       this._clearAacData();
       this._clearID3Data();
+      this.keyFrames = 0;
     }
   }, {
     key: 'insertDiscontinuity',
@@ -5129,6 +5130,10 @@ var TSDemuxer = function () {
           this._parseID3PES(this._parsePES(id3Data));
           this._clearID3Data();
         }
+        if (!this.keyFrames && avcId !== -1) {
+          this.observer.trigger(_events2.default.ERROR, { type: _errors.ErrorTypes.MEDIA_ERROR, details: _errors.ErrorDetails.FRAG_PARSING_ERROR, fatal: false, reason: 'No keyframes in segment ' + sn });
+        }
+        this.keyFrames = 0;
       }
       this.remux(null, final);
     }
@@ -5561,6 +5566,9 @@ var TSDemuxer = function () {
         //        samples already appended (we already found a keyframe in this fragment) OR fragment is contiguous
         if (key === true || track.sps && (samples.length || this.contiguous)) {
           avcSample = { units: { units: units2, length: length }, pts: pes.pts, dts: pes.dts, key: key };
+          if (key) {
+            this.keyFrames++;
+          }
           // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
           samples.push(avcSample);
           track.len += length;
@@ -6473,7 +6481,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-4';
+      return '0.6.1-5';
     }
   }, {
     key: 'Events',
@@ -6510,7 +6518,7 @@ var Hls = function () {
           liveMaxLatencyDurationCount: Infinity,
           liveSyncDuration: undefined,
           liveMaxLatencyDuration: undefined,
-          maxMaxBufferLength: 600,
+          maxMaxBufferLength: 40,
           enableWorker: true,
           enableSoftwareAES: true,
           manifestLoadingTimeOut: 10000,
