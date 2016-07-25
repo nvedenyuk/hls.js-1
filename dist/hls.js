@@ -2704,7 +2704,7 @@ var StreamController = function (_EventHandler) {
 
       if (this.state === State.PARSING) {
         this.tparse2 = Date.now();
-        var level = this.levels[this.level],
+        var level = this.levels[this.fragCurrent.level],
             frag = this.fragCurrent;
 
         _logger.logger.log('parsed ' + data.type + ',PTS:[' + data.startPTS.toFixed(3) + ',' + data.endPTS.toFixed(3) + '],DTS:[' + data.startDTS.toFixed(3) + '/' + data.endDTS.toFixed(3) + '],nb:' + data.nb);
@@ -6481,7 +6481,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-5';
+      return '0.6.1-6';
     }
   }, {
     key: 'Events',

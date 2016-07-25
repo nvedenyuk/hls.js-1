@@ -961,7 +961,7 @@ class StreamController extends EventHandler {
   onFragParsingData(data) {
     if (this.state === State.PARSING) {
       this.tparse2 = Date.now();
-      var level = this.levels[this.level],
+      var level = this.levels[this.fragCurrent.level],
           frag = this.fragCurrent;
 
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
