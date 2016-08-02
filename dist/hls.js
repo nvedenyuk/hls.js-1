@@ -889,8 +889,8 @@ var BufferController = function (_EventHandler) {
       if (!media || !mediaSource || media.readyState === 0 || mediaSource.readyState !== 'open') {
         return;
       }
-      for (var type in mediaSource.sourceBuffers) {
-        if (mediaSource.sourceBuffers[type].updating) {
+      for (var i = 0; i < mediaSource.sourceBuffers.length; i++) {
+        if (mediaSource.sourceBuffers[i].updating) {
           // can't set duration whilst a buffer is updating
           return;
         }
@@ -6480,7 +6480,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-7';
+      return '0.6.1-8';
     }
   }, {
     key: 'Events',

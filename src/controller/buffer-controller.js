@@ -241,8 +241,8 @@ class BufferController extends EventHandler {
     if (!media || !mediaSource || media.readyState === 0 || mediaSource.readyState !== 'open') {
       return;
     }
-    for (let type in mediaSource.sourceBuffers) {
-      if (mediaSource.sourceBuffers[type].updating) {
+    for (let i = 0; i < mediaSource.sourceBuffers.length; i++) {
+      if (mediaSource.sourceBuffers[i].updating) {
         // can't set duration whilst a buffer is updating
         return;
       }
