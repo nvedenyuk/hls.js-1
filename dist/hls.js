@@ -6480,7 +6480,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-6';
+      return '0.6.1-7';
     }
   }, {
     key: 'Events',
@@ -6914,7 +6914,8 @@ var FragmentLoader = function (_EventHandler) {
       payload.final = true;
       stats.length = payload.byteLength;
       this.hls.trigger(_events2.default.FRAG_LOADED, { frag: this.frag, stats: stats });
-      this.loadchunk(event, stats);
+      // we cannot add new property to xhr response object in IE
+      this.loadchunk({ currentTarget: { response: payload } }, stats);
       this.firstChunk = true;
       // detach fragment loader on load success
       this.frag.loader = undefined;
