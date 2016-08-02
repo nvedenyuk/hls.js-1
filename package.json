@@ -35,7 +35,7 @@
     "babel": "babel src --out-dir lib"
   },
   "dependencies": {
-    "webworkify": "^1.0.2"
+    "webworkify": "^1.3.0"
   },
   "devDependencies": {
     "arraybuffer-equal": "^1.0.4",
