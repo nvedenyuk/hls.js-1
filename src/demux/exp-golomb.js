@@ -16,6 +16,10 @@ class ExpGolomb {
     this.bitsAvailable = 0; // :uint
   }
 
+  wholeBytesAvailable() {
+    return this.bytesAvailable + (this.bitsAvailable>>3);
+  }
+
   // ():void
   loadWord() {
     var

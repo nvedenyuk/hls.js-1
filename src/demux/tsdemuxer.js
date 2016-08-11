@@ -455,10 +455,10 @@
           var payloadSize = 0;
           var endOfCaptions = false;
 
-          while (!endOfCaptions && expGolombDecoder.bytesAvailable > 1) {
+          while (!endOfCaptions && expGolombDecoder.wholeBytesAvailable() > 1) {
             payloadType = 0;
             do {
-                if (expGolombDecoder.bytesAvailable!==0) {
+                if (expGolombDecoder.wholeBytesAvailable()!==0) {
                   payloadType += expGolombDecoder.readUByte();
                 }
             } while (payloadType === 0xFF);
@@ -466,14 +466,14 @@
             // Parse payload size.
             payloadSize = 0;
             do {
-                if (expGolombDecoder.bytesAvailable!==0) {
+                if (expGolombDecoder.wholeBytesAvailable()!==0) {
                   payloadSize += expGolombDecoder.readUByte();
                 }
             } while (payloadSize === 0xFF);
 
             // TODO: there can be more than one payload in an SEI packet...
             // TODO: need to read type and size in a while loop to get them all
-            if (payloadType === 4 && expGolombDecoder.bytesAvailable !== 0) {
+            if (payloadType === 4 && expGolombDecoder.wholeBytesAvailable() !== 0) {
 
               endOfCaptions = true;
 
@@ -509,7 +509,7 @@
                 }
               }
             }
-            else if (payloadSize < expGolombDecoder.bytesAvailable)
+            else if (payloadSize < expGolombDecoder.wholeBytesAvailable())
             {
               for (i = 0; i<payloadSize; i++)
               {
