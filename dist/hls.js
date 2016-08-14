@@ -1757,7 +1757,7 @@ var StreamController = function (_EventHandler) {
   function StreamController(hls) {
     _classCallCheck(this, StreamController);
 
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(StreamController).call(this, hls, _events2.default.MEDIA_ATTACHED, _events2.default.MEDIA_DETACHING, _events2.default.MANIFEST_LOADING, _events2.default.MANIFEST_PARSED, _events2.default.LEVEL_LOADED, _events2.default.KEY_LOADED, _events2.default.FRAG_CHUNK_LOADED, _events2.default.FRAG_LOADED, _events2.default.FRAG_LOAD_EMERGENCY_ABORTED, _events2.default.FRAG_PARSING_INIT_SEGMENT, _events2.default.FRAG_PARSING_DATA, _events2.default.FRAG_PARSED, _events2.default.ERROR, _events2.default.BUFFER_APPENDED, _events2.default.BUFFER_FLUSHED));
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(StreamController).call(this, hls, _events2.default.MEDIA_ATTACHED, _events2.default.MEDIA_DETACHING, _events2.default.MANIFEST_LOADING, _events2.default.MANIFEST_PARSED, _events2.default.LEVEL_LOADED, _events2.default.LEVEL_PTS_UPDATED, _events2.default.KEY_LOADED, _events2.default.FRAG_CHUNK_LOADED, _events2.default.FRAG_LOADED, _events2.default.FRAG_LOAD_EMERGENCY_ABORTED, _events2.default.FRAG_PARSING_INIT_SEGMENT, _events2.default.FRAG_PARSING_DATA, _events2.default.FRAG_PARSED, _events2.default.ERROR, _events2.default.BUFFER_APPENDED, _events2.default.BUFFER_FLUSHED));
 
     _this.config = hls.config;
     _this.audioCodecSwap = false;
@@ -2509,7 +2509,6 @@ var StreamController = function (_EventHandler) {
           sliding = 0;
 
       _logger.logger.log('level ' + newLevelId + ' loaded [' + newDetails.startSN + ',' + newDetails.endSN + '],duration:' + duration);
-      this.levelLastLoaded = newLevelId;
 
       if (newDetails.live) {
         var curDetails = curLevel.details;
@@ -2530,6 +2529,10 @@ var StreamController = function (_EventHandler) {
         newDetails.PTSKnown = false;
       }
       // override level info
+      if (this.levelLastLoaded !== undefined) {
+        _levelHelper2.default.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+      }
+      this.levelLastLoaded = newLevelId;
       curLevel.details = newDetails;
       this.hls.trigger(_events2.default.LEVEL_UPDATED, { details: newDetails, level: newLevelId });
 
@@ -2715,7 +2718,7 @@ var StreamController = function (_EventHandler) {
 
         var drift = _levelHelper2.default.updateFragPTS(level.details, frag.sn, data.startPTS, data.endPTS),
             hls = this.hls;
-        hls.trigger(_events2.default.LEVEL_PTS_UPDATED, { details: level.details, level: this.level, drift: drift });
+        hls.trigger(_events2.default.LEVEL_PTS_UPDATED, { details: level.details, level: this.fragCurrent.level, drift: drift });
 
         [data.data1, data.data2].forEach(function (buffer) {
           if (buffer) {
@@ -2954,6 +2957,18 @@ var StreamController = function (_EventHandler) {
       this.state = State.IDLE;
       // reset reference to frag
       this.fragPrevious = null;
+    }
+  }, {
+    key: 'onLevelPtsUpdated',
+    value: function onLevelPtsUpdated(lu) {
+      if (!this.levels) {
+        return;
+      }
+      for (var level = 0; level < this.levels.length; level++) {
+        if (level !== lu.level && this.levels[level].details) {
+          _levelHelper2.default.mergeDetails(this.levels[lu.level].details, this.levels[level].details);
+        }
+      }
     }
   }, {
     key: 'swapAudioCodec',
@@ -6486,7 +6501,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-9';
+      return '0.6.1-10';
     }
   }, {
     key: 'Events',

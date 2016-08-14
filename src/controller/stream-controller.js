@@ -35,6 +35,7 @@ class StreamController extends EventHandler {
       Event.MANIFEST_LOADING,
       Event.MANIFEST_PARSED,
       Event.LEVEL_LOADED,
+      Event.LEVEL_PTS_UPDATED,
       Event.KEY_LOADED,
       Event.FRAG_CHUNK_LOADED,
       Event.FRAG_LOADED,
@@ -769,7 +770,6 @@ class StreamController extends EventHandler {
         sliding = 0;
 
     logger.log(`level ${newLevelId} loaded [${newDetails.startSN},${newDetails.endSN}],duration:${duration}`);
-    this.levelLastLoaded = newLevelId;
 
     if (newDetails.live) {
       var curDetails = curLevel.details;
@@ -790,6 +790,10 @@ class StreamController extends EventHandler {
       newDetails.PTSKnown = false;
     }
     // override level info
+    if (this.levelLastLoaded !== undefined) {
+      LevelHelper.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+    }
+    this.levelLastLoaded = newLevelId;
     curLevel.details = newDetails;
     this.hls.trigger(Event.LEVEL_UPDATED, { details: newDetails, level: newLevelId });
 
@@ -972,7 +976,7 @@ class StreamController extends EventHandler {
 
       var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS),
           hls = this.hls;
-      hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.level, drift: drift});
+      hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
 
       [data.data1, data.data2].forEach(buffer => {
         if (buffer) {
@@ -1203,6 +1207,17 @@ _checkBuffer() {
     this.state = State.IDLE;
     // reset reference to frag
     this.fragPrevious = null;
+  }
+
+  onLevelPtsUpdated(lu) {
+    if (!this.levels) {
+      return;
+    }
+    for (var level=0; level<this.levels.length; level++) {
+      if (level !== lu.level && this.levels[level].details) {
+        LevelHelper.mergeDetails(this.levels[lu.level].details, this.levels[level].details);
+      }
+    }
   }
 
   swapAudioCodec() {
