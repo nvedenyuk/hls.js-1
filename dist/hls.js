@@ -2529,7 +2529,7 @@ var StreamController = function (_EventHandler) {
         newDetails.PTSKnown = false;
       }
       // override level info
-      if (this.levelLastLoaded !== undefined) {
+      if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
         _levelHelper2.default.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
       }
       this.levelLastLoaded = newLevelId;
@@ -6510,7 +6510,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-11';
+      return '0.6.1-12';
     }
   }, {
     key: 'Events',

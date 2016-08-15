@@ -790,7 +790,7 @@ class StreamController extends EventHandler {
       newDetails.PTSKnown = false;
     }
     // override level info
-    if (this.levelLastLoaded !== undefined) {
+    if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
       LevelHelper.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
     }
     this.levelLastLoaded = newLevelId;
