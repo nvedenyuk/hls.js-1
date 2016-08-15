@@ -12,9 +12,18 @@ import PassThroughRemuxer from '../remux/passthrough-remuxer';
 class DemuxerInline {
 
   constructor(hls,typeSupported, config=null) {
+    var _this = this;
     this.hls = hls;
     this.config = this.hls.config || config;
     this.typeSupported = typeSupported;
+    this.timeOffset = 0;
+    this.onFragParsingData = function(ev, data) {
+      if (data.type === 'video') {
+        // sync on video chunks
+        _this.timeOffset += data.endDTS-data.startDTS;
+      }
+    };
+    this.hls.on(Event.FRAG_PARSING_DATA, this.onFragParsingData);
   }
 
   destroy() {
@@ -22,9 +31,10 @@ class DemuxerInline {
     if (demuxer) {
       demuxer.destroy();
     }
+    this.hls.off(Event.FRAG_PARSING_DATA, this.onFragParsingData);
   }
 
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final) {
     var demuxer = this.demuxer;
     if (!demuxer) {
       var hls = this.hls;
@@ -43,7 +53,10 @@ class DemuxerInline {
       }
       this.demuxer = demuxer;
     }
-    demuxer.push(data,audioCodec,videoCodec,timeOffset,cc,level,sn,duration, final);
+    if (first) {
+      this.timeOffset = timeOffset;
+    }
+    demuxer.push(data,audioCodec,videoCodec,this.timeOffset,cc,level,sn,duration, final);
   }
 }
 

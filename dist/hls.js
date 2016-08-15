@@ -2711,10 +2711,6 @@ var StreamController = function (_EventHandler) {
             frag = this.fragCurrent;
 
         _logger.logger.log('parsed ' + data.type + ',PTS:[' + data.startPTS.toFixed(3) + ',' + data.endPTS.toFixed(3) + '],DTS:[' + data.startDTS.toFixed(3) + '/' + data.endDTS.toFixed(3) + '],nb:' + data.nb);
-        if (data.type === 'video') {
-          // sync on video chunks
-          this.fragTimeOffset += data.endDTS - data.startDTS;
-        }
 
         var drift = _levelHelper2.default.updateFragPTS(level.details, frag.sn, data.startPTS, data.endPTS),
             hls = this.hls;
@@ -4069,9 +4065,18 @@ var DemuxerInline = function () {
 
     _classCallCheck(this, DemuxerInline);
 
+    var _this = this;
     this.hls = hls;
     this.config = this.hls.config || config;
     this.typeSupported = typeSupported;
+    this.timeOffset = 0;
+    this.onFragParsingData = function (ev, data) {
+      if (data.type === 'video') {
+        // sync on video chunks
+        _this.timeOffset += data.endDTS - data.startDTS;
+      }
+    };
+    this.hls.on(_events2.default.FRAG_PARSING_DATA, this.onFragParsingData);
   }
 
   _createClass(DemuxerInline, [{
@@ -4081,10 +4086,11 @@ var DemuxerInline = function () {
       if (demuxer) {
         demuxer.destroy();
       }
+      this.hls.off(_events2.default.FRAG_PARSING_DATA, this.onFragParsingData);
     }
   }, {
     key: 'push',
-    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
+    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final) {
       var demuxer = this.demuxer;
       if (!demuxer) {
         var hls = this.hls;
@@ -4103,7 +4109,10 @@ var DemuxerInline = function () {
         }
         this.demuxer = demuxer;
       }
-      demuxer.push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final);
+      if (first) {
+        this.timeOffset = timeOffset;
+      }
+      demuxer.push(data, audioCodec, videoCodec, this.timeOffset, cc, level, sn, duration, final);
     }
   }]);
 
@@ -4159,7 +4168,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
         self.demuxer = new _demuxerInline2.default(observer, data.typeSupported, JSON.parse(data.config));
         break;
       case 'demux':
-        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.final);
+        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.first, data.final);
         break;
       default:
         break;
@@ -4278,12 +4287,12 @@ var Demuxer = function () {
     }
   }, {
     key: 'pushDecrypted',
-    value: function pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final) {
+    value: function pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final) {
       if (this.w) {
         // post fragment payload as transferable objects (no copy)
-        this.w.postMessage({ cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn: sn, duration: duration, final: final }, [data]);
+        this.w.postMessage({ cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn: sn, duration: duration, first: first, final: final }, [data]);
       } else {
-        this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, final);
+        this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final);
       }
     }
   }, {
@@ -4338,10 +4347,10 @@ var Demuxer = function () {
 
         var localthis = this;
         this.decrypter.decrypt(data, decryptdata.key, data.first && decryptdata.iv, function (decryptedData) {
-          localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.final);
+          localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final);
         });
       } else {
-        this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.final);
+        this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final);
       }
     }
   }, {
@@ -6501,7 +6510,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-10';
+      return '0.6.1-11';
     }
   }, {
     key: 'Events',

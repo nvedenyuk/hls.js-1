@@ -969,10 +969,6 @@ class StreamController extends EventHandler {
           frag = this.fragCurrent;
 
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
-      if (data.type === 'video') {
-        // sync on video chunks
-        this.fragTimeOffset += data.endDTS-data.startDTS;
-      }
 
       var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS),
           hls = this.hls;
