@@ -57,6 +57,8 @@ module.exports = {
   FRAG_PARSING_DATA: 'hlsFragParsingData',
   // fired when fragment parsing is completed - data: undefined
   FRAG_PARSED: 'hlsFragParsed',
+  // fired when there are skipped frames in the beginning of frag
+  FRAG_SKIP_COUNT: 'hlsFragSkipCount',
   // fired when fragment remuxed MP4 boxes have all been appended into SourceBuffer - data: { frag : fragment object, stats : { trequest, tfirst, tload, tparsed, tbuffered, length} }
   FRAG_BUFFERED: 'hlsFragBuffered',
   // fired when fragment matching with current media position is changing - data : { frag : fragment object }

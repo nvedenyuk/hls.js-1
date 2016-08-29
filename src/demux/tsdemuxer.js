@@ -87,7 +87,8 @@
       logger.log('discontinuity detected');
       this.insertDiscontinuity();
       this.lastCC = cc;
-    } else if (level !== this.lastLevel) {
+    }
+    if (level !== this.lastLevel) {
       logger.log('level switch detected');
       this.switchLevel();
       this.lastLevel = level;
@@ -95,6 +96,7 @@
       this.contiguous = true;
     }
     this.lastSN = sn;
+    this.skipCount = 0;
 
     if (!this.contiguous) {
       // flush any partial content
@@ -210,6 +212,10 @@
       this.keyFrames = 0;
     }
     this.remux(null, final);
+    if (this.skipCount) {
+      this.observer.trigger(Event.FRAG_SKIP_COUNT, {skip: this.skipCount});
+    }
+
   }
 
   remux(data, final) {
@@ -588,6 +594,9 @@
         samples.push(avcSample);
         track.len += length;
         track.nbNalu += units2.length;
+      }
+      else {
+        this.skipCount++;
       }
     }
   }
