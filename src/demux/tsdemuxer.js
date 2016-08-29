@@ -226,7 +226,8 @@
         track.nbNalu = 0;
       }
       track.len = 0;
-      for (var sample of track.samples) {
+      for (let i=0; i<track.samples.length; i++) {
+        let sample = track.samples[i];
         track.len += ((sample.units&&sample.units.length)|0)+
           ((sample.unit&&sample.unit.length)|0)+(sample.len|0)+((sample.bytes&&sample.bytes.length)|0);
         if (track.hasOwnProperty('nbNalu')) {
@@ -236,7 +237,8 @@
     }
     function filterSamples(track, end, _save) {
       var _new = [];
-      for (var sample of track.samples) {
+      for (let i=0; i<track.samples.length; i++) {
+        let sample = track.samples[i];
         var sampleTime = sample.dts||sample.pts;
         if (sampleTime<=end) {
           _new.push(sample);
