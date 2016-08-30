@@ -650,6 +650,7 @@ var BufferController = function (_EventHandler) {
 
     // the value that we have set mediasource.duration to
     // (the actual duration may be tweaked slighly by the browser)
+
     var _this = _possibleConstructorReturn(this, (BufferController.__proto__ || Object.getPrototypeOf(BufferController)).call(this, hls, _events2.default.MEDIA_ATTACHING, _events2.default.MEDIA_DETACHING, _events2.default.BUFFER_RESET, _events2.default.BUFFER_APPENDING, _events2.default.BUFFER_CODECS, _events2.default.BUFFER_EOS, _events2.default.BUFFER_FLUSHING, _events2.default.LEVEL_UPDATED));
 
     _this._msDuration = null;
@@ -1563,17 +1564,17 @@ var LevelController = function (_EventHandler) {
             }
             // FRAG_LOAD_ERROR and FRAG_LOAD_TIMEOUT are handled by mediaController
           } else if (details !== _errors.ErrorDetails.FRAG_LOAD_ERROR && details !== _errors.ErrorDetails.FRAG_LOAD_TIMEOUT) {
-            _logger.logger.error('cannot recover ' + details + ' error');
-            this._level = undefined;
-            // stopping live reloading timer if any
-            if (this.timer) {
-              clearTimeout(this.timer);
-              this.timer = null;
+              _logger.logger.error('cannot recover ' + details + ' error');
+              this._level = undefined;
+              // stopping live reloading timer if any
+              if (this.timer) {
+                clearTimeout(this.timer);
+                this.timer = null;
+              }
+              // redispatch same error but with fatal set to true
+              data.fatal = true;
+              hls.trigger(_events2.default.ERROR, data);
             }
-            // redispatch same error but with fatal set to true
-            data.fatal = true;
-            hls.trigger(_events2.default.ERROR, data);
-          }
         }
       }
     }
@@ -3268,6 +3269,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  * are those of the authors and should not be interpreted as representing
  * official policies, either expressed or implied, of the authors.
  */
+
 var AES = function () {
 
   /**
@@ -3277,6 +3279,7 @@ var AES = function () {
    * @constructor
    * @param key {Array} The key as an array of 4, 6 or 8 words.
    */
+
   function AES(key) {
     _classCallCheck(this, AES);
 
@@ -3579,20 +3582,20 @@ var AES128Decrypter = function () {
 
       // pull out the words of the IV to ensure we don't modify the
       // passed-in reference and easier access
-      init0 = ~~initVector[0];
-      init1 = ~~initVector[1];
-      init2 = ~~initVector[2];
-      init3 = ~~initVector[3];
+      init0 = ~ ~initVector[0];
+      init1 = ~ ~initVector[1];
+      init2 = ~ ~initVector[2];
+      init3 = ~ ~initVector[3];
 
       // decrypt four word sequences, applying cipher-block chaining (CBC)
       // to each decrypted block
       for (wordIx = 0; wordIx < encrypted32.length; wordIx += 4) {
         // convert big-endian (network order) words into little-endian
         // (javascript order)
-        encrypted0 = ~~this.ntoh(encrypted32[wordIx]);
-        encrypted1 = ~~this.ntoh(encrypted32[wordIx + 1]);
-        encrypted2 = ~~this.ntoh(encrypted32[wordIx + 2]);
-        encrypted3 = ~~this.ntoh(encrypted32[wordIx + 3]);
+        encrypted0 = ~ ~this.ntoh(encrypted32[wordIx]);
+        encrypted1 = ~ ~this.ntoh(encrypted32[wordIx + 1]);
+        encrypted2 = ~ ~this.ntoh(encrypted32[wordIx + 2]);
+        encrypted3 = ~ ~this.ntoh(encrypted32[wordIx + 3]);
 
         // decrypt the block
         decipher.decrypt(encrypted0, encrypted1, encrypted2, encrypted3, decrypted32, wordIx);
@@ -3944,31 +3947,31 @@ var ADTS = function () {
         }
         // Android : always use AAC
       } else if (userAgent.indexOf('android') !== -1) {
-        adtsObjectType = 2;
-        config = new Array(2);
-        adtsExtensionSampleingIndex = adtsSampleingIndex;
-      } else {
-        /*  for other browsers (chrome ...)
-            always force audio type to be HE-AAC SBR, as some browsers do not support audio codec switch properly (like Chrome ...)
-        */
-        adtsObjectType = 5;
-        config = new Array(4);
-        // if (manifest codec is HE-AAC or HE-AACv2) OR (manifest codec not specified AND frequency less than 24kHz)
-        if (audioCodec && (audioCodec.indexOf('mp4a.40.29') !== -1 || audioCodec.indexOf('mp4a.40.5') !== -1) || !audioCodec && adtsSampleingIndex >= 6) {
-          // HE-AAC uses SBR (Spectral Band Replication) , high frequencies are constructed from low frequencies
-          // there is a factor 2 between frame sample rate and output sample rate
-          // multiply frequency by 2 (see table below, equivalent to substract 3)
-          adtsExtensionSampleingIndex = adtsSampleingIndex - 3;
-        } else {
-          // if (manifest codec is AAC) AND (frequency less than 24kHz AND nb channel is 1) OR (manifest codec not specified and mono audio)
-          // Chrome fails to play back with low frequency AAC LC mono when initialized with HE-AAC.  This is not a problem with stereo.
-          if (audioCodec && audioCodec.indexOf('mp4a.40.2') !== -1 && adtsSampleingIndex >= 6 && adtsChanelConfig === 1 || !audioCodec && adtsChanelConfig === 1) {
-            adtsObjectType = 2;
-            config = new Array(2);
-          }
+          adtsObjectType = 2;
+          config = new Array(2);
           adtsExtensionSampleingIndex = adtsSampleingIndex;
+        } else {
+          /*  for other browsers (chrome ...)
+              always force audio type to be HE-AAC SBR, as some browsers do not support audio codec switch properly (like Chrome ...)
+          */
+          adtsObjectType = 5;
+          config = new Array(4);
+          // if (manifest codec is HE-AAC or HE-AACv2) OR (manifest codec not specified AND frequency less than 24kHz)
+          if (audioCodec && (audioCodec.indexOf('mp4a.40.29') !== -1 || audioCodec.indexOf('mp4a.40.5') !== -1) || !audioCodec && adtsSampleingIndex >= 6) {
+            // HE-AAC uses SBR (Spectral Band Replication) , high frequencies are constructed from low frequencies
+            // there is a factor 2 between frame sample rate and output sample rate
+            // multiply frequency by 2 (see table below, equivalent to substract 3)
+            adtsExtensionSampleingIndex = adtsSampleingIndex - 3;
+          } else {
+            // if (manifest codec is AAC) AND (frequency less than 24kHz AND nb channel is 1) OR (manifest codec not specified and mono audio)
+            // Chrome fails to play back with low frequency AAC LC mono when initialized with HE-AAC.  This is not a problem with stereo.
+            if (audioCodec && audioCodec.indexOf('mp4a.40.2') !== -1 && adtsSampleingIndex >= 6 && adtsChanelConfig === 1 || !audioCodec && adtsChanelConfig === 1) {
+              adtsObjectType = 2;
+              config = new Array(2);
+            }
+            adtsExtensionSampleingIndex = adtsSampleingIndex;
+          }
         }
-      }
       /* refer to http://wiki.multimedia.cx/index.php?title=MPEG-4_Audio#Audio_Specific_Config
           ISO 14496-3 (AAC).pdf - Table 1.13 — Syntax of AudioSpecificConfig()
         Audio Profile / Audio Object Type
@@ -4193,6 +4196,10 @@ var DemuxerWorker = function DemuxerWorker(self) {
 
   observer.on(_events2.default.FRAG_PARSED, function (event) {
     self.postMessage({ event: event });
+  });
+
+  observer.on(_events2.default.FRAG_SKIP_COUNT, function (event, data) {
+    self.postMessage({ event: event, data: data });
   });
 
   observer.on(_events2.default.ERROR, function (event, data) {
@@ -4555,8 +4562,8 @@ var ExpGolomb = function () {
         // the number is odd if the low order bit is set
         return 1 + valu >>> 1; // add 1 to make it even, and divide by 2
       } else {
-        return -1 * (valu >>> 1); // divide by two then make it negative
-      }
+          return -1 * (valu >>> 1); // divide by two then make it negative
+        }
     }
 
     // Some convenience functions
@@ -4677,14 +4684,14 @@ var ExpGolomb = function () {
       if (picOrderCntType === 0) {
         this.readUEG(); //log2_max_pic_order_cnt_lsb_minus4
       } else if (picOrderCntType === 1) {
-        this.skipBits(1); // delta_pic_order_always_zero_flag
-        this.skipEG(); // offset_for_non_ref_pic
-        this.skipEG(); // offset_for_top_to_bottom_field
-        numRefFramesInPicOrderCntCycle = this.readUEG();
-        for (i = 0; i < numRefFramesInPicOrderCntCycle; i++) {
-          this.skipEG(); // offset_for_ref_frame[ i ]
+          this.skipBits(1); // delta_pic_order_always_zero_flag
+          this.skipEG(); // offset_for_non_ref_pic
+          this.skipEG(); // offset_for_top_to_bottom_field
+          numRefFramesInPicOrderCntCycle = this.readUEG();
+          for (i = 0; i < numRefFramesInPicOrderCntCycle; i++) {
+            this.skipEG(); // offset_for_ref_frame[ i ]
+          }
         }
-      }
       this.skipUEG(); // max_num_ref_frames
       this.skipBits(1); // gaps_in_frame_num_value_allowed_flag
       picWidthInMbsMinus1 = this.readUEG();
@@ -5821,8 +5828,8 @@ var TSDemuxer = function () {
         aacOverFlow = data.subarray(offset, len);
         //logger.log(`AAC: overflow detected:${len-offset}`);
       } else {
-        aacOverFlow = null;
-      }
+          aacOverFlow = null;
+        }
       this.aacOverFlow = aacOverFlow;
       this.lastAacPTS = stamp;
     }
@@ -6483,7 +6490,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-15';
+      return '0.6.1-16';
     }
   }, {
     key: 'Events',
@@ -7486,6 +7493,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 */
 
 //import Hex from '../utils/hex';
+
 var MP4 = function () {
   function MP4() {
     _classCallCheck(this, MP4);
@@ -7583,6 +7591,7 @@ var MP4 = function () {
       0x00, 0x00, 0x00, // flags
       0x00, 0x00, 0x00, 0x00, // sample_size
       0x00, 0x00, 0x00, 0x00]);
+      // sample_count
       MP4.VMHD = new Uint8Array([0x00, // version
       0x00, 0x00, 0x01, // flags
       0x00, 0x00, // graphicsmode
@@ -7667,6 +7676,7 @@ var MP4 = function () {
     }
   }, {
     key: 'minf',
+    // sequence_number
     value: function minf(track) {
       if (track.type === 'audio') {
         return MP4.box(MP4.types.minf, MP4.box(MP4.types.smhd, MP4.SMHD), MP4.DINF, MP4.stbl(track));
@@ -7885,9 +7895,11 @@ var MP4 = function () {
           id = track.id;
       return MP4.box(MP4.types.traf, MP4.box(MP4.types.tfhd, new Uint8Array([0x00, // version 0
       0x00, 0x00, 0x00, // flags
-      id >> 24, id >> 16 & 0XFF, id >> 8 & 0XFF, id & 0xFF])), MP4.box(MP4.types.tfdt, new Uint8Array([0x00, // version 0
+      id >> 24, id >> 16 & 0XFF, id >> 8 & 0XFF, id & 0xFF])), // track_ID
+      MP4.box(MP4.types.tfdt, new Uint8Array([0x00, // version 0
       0x00, 0x00, 0x00, // flags
-      baseMediaDecodeTime >> 24, baseMediaDecodeTime >> 16 & 0XFF, baseMediaDecodeTime >> 8 & 0XFF, baseMediaDecodeTime & 0xFF])), MP4.trun(track, sampleDependencyTable.length + 16 + // tfhd
+      baseMediaDecodeTime >> 24, baseMediaDecodeTime >> 16 & 0XFF, baseMediaDecodeTime >> 8 & 0XFF, baseMediaDecodeTime & 0xFF])), // baseMediaDecodeTime
+      MP4.trun(track, sampleDependencyTable.length + 16 + // tfhd
       16 + // tfdt
       8 + // traf header
       16 + // mfhd
@@ -8453,11 +8465,11 @@ var MP4Remuxer = function () {
                 _logger.logger.log(_delta + ' ms hole between AAC samples detected,filling it');
                 // if we have frame overlap, overlapping for more than half a frame duraion
               } else if (_delta < -12) {
-                // drop overlapping audio frames... browser will deal with it
-                _logger.logger.log(-_delta + ' ms overlapping between AAC samples detected, drop frame');
-                track.len -= unit.byteLength;
-                continue;
-              }
+                  // drop overlapping audio frames... browser will deal with it
+                  _logger.logger.log(-_delta + ' ms overlapping between AAC samples detected, drop frame');
+                  track.len -= unit.byteLength;
+                  continue;
+                }
               // set PTS/DTS to expected PTS/DTS
               ptsnorm = dtsnorm = nextAacPts;
             }
@@ -8754,6 +8766,7 @@ var _createClass = function () { function defineProperties(target, props) { for 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 // adapted from https://github.com/kanongil/node-m3u8parse/blob/master/attrlist.js
+
 var AttrList = function () {
   function AttrList(attrs) {
     _classCallCheck(this, AttrList);

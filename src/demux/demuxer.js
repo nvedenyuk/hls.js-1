@@ -133,12 +133,12 @@ class Demuxer {
           nb: data.nb
         });
         break;
-        case Event.FRAG_PARSING_METADATA:
+      case Event.FRAG_PARSING_METADATA:
         this.hls.trigger(Event.FRAG_PARSING_METADATA, {
           samples: data.samples
         });
         break;
-        case Event.FRAG_PARSING_USERDATA:
+      case Event.FRAG_PARSING_USERDATA:
         this.hls.trigger(Event.FRAG_PARSING_USERDATA, {
           samples: data.samples
         });
