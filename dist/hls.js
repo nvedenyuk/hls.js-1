@@ -351,8 +351,22 @@ module.exports = function (fn, options) {
         scache
     ];
 
+    var workerSources = {};
+    resolveSources(skey);
+
+    function resolveSources(key) {
+        workerSources[key] = true;
+
+        for (var depPath in sources[key][1]) {
+            var depKey = sources[key][1][depPath];
+            if (!workerSources[depKey]) {
+                resolveSources(depKey);
+            }
+        }
+    }
+
     var src = '(' + bundleFn + ')({'
-        + Object.keys(sources).map(function (key) {
+        + Object.keys(workerSources).map(function (key) {
             return stringify(key) + ':['
                 + sources[key][0]
                 + ',' + stringify(sources[key][1]) + ']'
@@ -1795,7 +1809,7 @@ var StreamController = function (_EventHandler) {
         }
         this.level = -1;
         this.fragLoadError = 0;
-        if (media && lastCurrentTime) {
+        if (media && lastCurrentTime > 0) {
           _logger.logger.log('configure startPosition @' + lastCurrentTime);
           if (!this.lastPaused) {
             _logger.logger.log('resuming video');
@@ -2472,6 +2486,7 @@ var StreamController = function (_EventHandler) {
       this.hls.trigger(_events2.default.BUFFER_RESET);
       this.bufferRange = [];
       this.stalled = false;
+      this.startPosition = this.lastCurrentTime = 0;
     }
   }, {
     key: 'onManifestParsed',
@@ -5059,10 +5074,10 @@ var TSDemuxer = function () {
         _logger.logger.log('level switch detected');
         this.switchLevel();
         this.lastLevel = level;
-      } else if (sn === this.lastSN + 1) {
+      }
+      if (sn === this.lastSN + 1) {
         this.contiguous = true;
       }
-      this.lastSN = sn;
       this.skipCount = 0;
 
       if (!this.contiguous) {
@@ -5177,6 +5192,7 @@ var TSDemuxer = function () {
           this.observer.trigger(_events2.default.ERROR, { type: _errors.ErrorTypes.MEDIA_ERROR, details: _errors.ErrorDetails.FRAG_PARSING_ERROR, fatal: false, reason: 'No keyframes in segment ' + sn });
         }
         this.keyFrames = 0;
+        this.lastSN = sn;
       }
       this.remux(null, final);
       if (this.skipCount) {
@@ -6490,7 +6506,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-16';
+      return '0.6.1-17';
     }
   }, {
     key: 'Events',

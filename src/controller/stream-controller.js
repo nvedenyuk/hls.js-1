@@ -75,7 +75,7 @@ class StreamController extends EventHandler {
       }
       this.level = -1;
       this.fragLoadError = 0;
-      if (media && lastCurrentTime) {
+      if (media && lastCurrentTime > 0) {
         logger.log(`configure startPosition @${lastCurrentTime}`);
         if (!this.lastPaused) {
           logger.log('resuming video');
@@ -736,6 +736,7 @@ class StreamController extends EventHandler {
     this.hls.trigger(Event.BUFFER_RESET);
     this.bufferRange = [];
     this.stalled = false;
+    this.startPosition = this.lastCurrentTime = 0;
   }
 
   onManifestParsed(data) {

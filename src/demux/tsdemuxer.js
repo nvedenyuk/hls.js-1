@@ -92,10 +92,10 @@
       logger.log('level switch detected');
       this.switchLevel();
       this.lastLevel = level;
-    } else if (sn === (this.lastSN+1)) {
+    }
+    if (sn === (this.lastSN+1)) {
       this.contiguous = true;
     }
-    this.lastSN = sn;
     this.skipCount = 0;
 
     if (!this.contiguous) {
@@ -210,6 +210,7 @@
         this.observer.trigger(Event.ERROR, {type : ErrorTypes.MEDIA_ERROR, details: ErrorDetails.FRAG_PARSING_ERROR, fatal: false, reason: 'No keyframes in segment '+sn});
       }
       this.keyFrames = 0;
+      this.lastSN = sn;
     }
     this.remux(null, final);
     if (this.skipCount) {
