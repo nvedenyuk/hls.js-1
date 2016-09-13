@@ -332,15 +332,14 @@ class StreamController extends EventHandler {
     return frag;
   }
 
-  _findFragment({start, fragPrevious, fragLen, fragments, bufferEnd, end, levelDetails}) {
+  _findFragment({start, fragPrevious, fragLen, fragments, bufferEnd, end, levelDetails, holaSeek}) {
     const config = this.hls.config;
-
     let frag,
         foundFrag,
         maxFragLookUpTolerance = config.maxFragLookUpTolerance;
 
     if (bufferEnd < end) {
-      if (bufferEnd > end - maxFragLookUpTolerance) {
+      if (bufferEnd > end - maxFragLookUpTolerance || this.media && this.media.seeking || holaSeek) {
         maxFragLookUpTolerance = 0;
       }
       foundFrag = BinarySearch.search(fragments, (candidate) => {

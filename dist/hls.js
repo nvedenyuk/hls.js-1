@@ -2093,15 +2093,15 @@ var StreamController = function (_EventHandler) {
       var bufferEnd = _ref3.bufferEnd;
       var end = _ref3.end;
       var levelDetails = _ref3.levelDetails;
+      var holaSeek = _ref3.holaSeek;
 
       var config = this.hls.config;
-
       var frag = void 0,
           foundFrag = void 0,
           maxFragLookUpTolerance = config.maxFragLookUpTolerance;
 
       if (bufferEnd < end) {
-        if (bufferEnd > end - maxFragLookUpTolerance) {
+        if (bufferEnd > end - maxFragLookUpTolerance || this.media && this.media.seeking || holaSeek) {
           maxFragLookUpTolerance = 0;
         }
         foundFrag = _binarySearch2.default.search(fragments, function (candidate) {
@@ -6506,7 +6506,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-17';
+      return '0.6.1-18';
     }
   }, {
     key: 'Events',
