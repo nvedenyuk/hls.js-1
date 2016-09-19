@@ -257,7 +257,7 @@ class StreamController extends EventHandler {
         bufferEnd = bufferInfo.end,
         frag;
 
-      // in case of live playlist we need to ensure that requested position is not located before playlist start
+    // in case of live playlist we need to ensure that requested position is not located before playlist start
     if (levelDetails.live) {
       frag = this._ensureFragmentAtLivePoint({levelDetails, bufferEnd, start, end, fragPrevious, fragments, fragLen});
       // if it explicitely returns null don't load any fragment and exit function now
@@ -372,7 +372,7 @@ class StreamController extends EventHandler {
       frag = foundFrag;
       start = foundFrag.start;
       //logger.log('find SN matching with pos:' +  bufferEnd + ':' + frag.sn);
-      if (fragPrevious && frag.level === fragPrevious.level && frag.sn === fragPrevious.sn) {
+      if (fragPrevious && frag.sn === fragPrevious.sn) {
         if (frag.sn < levelDetails.endSN) {
           frag = fragments[frag.sn + 1 - levelDetails.startSN];
           logger.log(`SN just loaded, load next one: ${frag.sn}`);
@@ -515,7 +515,7 @@ class StreamController extends EventHandler {
   }
 
   _checkFragmentChanged() {
-    var rangeCurrent, currentTime, video = this.media;
+    var currentTime, video = this.media;
     if (video && video.seeking === false) {
       currentTime = video.currentTime;
       /* if video element is in seeked state, currentTime can only increase.
@@ -526,23 +526,6 @@ class StreamController extends EventHandler {
       */
       if(currentTime > video.playbackRate*this.lastCurrentTime) {
         this.lastCurrentTime = currentTime;
-      }
-      if (this.isBuffered(currentTime)) {
-        rangeCurrent = this.getBufferRange(currentTime);
-      } else if (this.isBuffered(currentTime + 0.1)) {
-        /* ensure that FRAG_CHANGED event is triggered at startup,
-          when first video frame is displayed and playback is paused.
-          add a tolerance of 100ms, in case current position is not buffered,
-          check if current pos+100ms is buffered and use that buffer range
-          for FRAG_CHANGED event reporting */
-        rangeCurrent = this.getBufferRange(currentTime + 0.1);
-      }
-      if (rangeCurrent) {
-        var fragPlaying = rangeCurrent.frag;
-        if (fragPlaying !== this.fragPlaying) {
-          this.fragPlaying = fragPlaying;
-          this.hls.trigger(Event.FRAG_CHANGED, {frag: fragPlaying});
-        }
       }
     }
   }
@@ -859,7 +842,7 @@ class StreamController extends EventHandler {
       }
       let demuxer = this.demuxer;
       if (demuxer) {
-        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata);
+        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, this.levels[level].details.endSN);
       }
     }
     this.fragLoadError = 0;
@@ -967,14 +950,9 @@ class StreamController extends EventHandler {
   onFragParsingData(data) {
     if (this.state === State.PARSING) {
       this.tparse2 = Date.now();
-      var level = this.levels[this.fragCurrent.level],
-          frag = this.fragCurrent;
-
+      var frag = this.fragCurrent;
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
-
-      var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS),
-          hls = this.hls;
-      hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
+      var hls = this.hls;
 
       [data.data1, data.data2].forEach(buffer => {
         if (buffer) {
@@ -993,10 +971,13 @@ class StreamController extends EventHandler {
     }
   }
 
-  onFragParsed() {
+  onFragParsed(data) {
     if (this.state === State.PARSING) {
+      var level = this.levels[this.fragCurrent.level];
       this.stats.tparsed = performance.now();
       this.state = State.PARSED;
+      var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS);
+      this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
       this._checkAppendedParsed();
     }
   }

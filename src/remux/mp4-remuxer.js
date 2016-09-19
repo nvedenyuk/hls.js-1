@@ -35,10 +35,12 @@ class MP4Remuxer {
     this.ISGenerated = false;
   }
 
-  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, data, final) {
+  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, data, flush) {
 
     // dummy
     data = null;
+
+    contiguous = flush || contiguous;
 
     // generate Init Segment if needed
     if (!this.ISGenerated) {
@@ -57,13 +59,13 @@ class MP4Remuxer {
           if (audioData) {
             audioTrackLength = audioData.endPTS - audioData.startPTS;
           }
-          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength);
+          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,flush);
         }
       } else {
         let videoData;
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
-          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous);
+          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,flush);
         }
         if (videoData && audioTrack.codec) {
           this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, videoData);
@@ -77,10 +79,6 @@ class MP4Remuxer {
     //logger.log('nb ID3 samples:' + audioTrack.samples.length);
     if (textTrack.samples.length) {
       this.remuxText(textTrack,timeOffset);
-    }
-    //notify end of parsing
-    if (final) {
-      this.observer.trigger(Event.FRAG_PARSED);
     }
   }
 
@@ -144,7 +142,7 @@ class MP4Remuxer {
       }
     }
 
-    if(Object.keys(tracks).length) {
+    if (Object.keys(tracks).length) {
       observer.trigger(Event.FRAG_PARSING_INIT_SEGMENT,data);
       this.ISGenerated = true;
       if (computePTSDTS) {
@@ -156,7 +154,7 @@ class MP4Remuxer {
     }
   }
 
-  remuxVideo(track, timeOffset, contiguous, audioTrackLength) {
+  remuxVideo(track, timeOffset, contiguous, audioTrackLength, flush) {
     var offset = 8,
         pesTimeScale = this.PES_TIMESCALE,
         pes2mp4ScaleFactor = this.PES2MP4SCALEFACTOR,
@@ -170,18 +168,13 @@ class MP4Remuxer {
 
     // PTS is coded on 33bits, and can loop from -2^32 to 2^32
     // PTSNormalize will make PTS/DTS value monotonic, we use last known DTS value as reference value
-    let nextAvcDts;
-    if (contiguous) {
-      // if parsed fragment is contiguous with last one, let's use last DTS value as reference
-      nextAvcDts = this.nextAvcDts;
-    } else {
-      // if not contiguous, let's use target timeOffset
-      nextAvcDts = timeOffset*pesTimeScale;
-    }
+    // if parsed fragment is contiguous with last one, let's use last DTS value as reference
+    // if not contiguous, let's use target timeOffset
+    let nextAvcDts = contiguous ? this.nextAvcDts : timeOffset*pesTimeScale;
     // compute first DTS and last DTS, normalize them against reference value
     let sample = inputSamples[0];
-    firstDTS =  Math.max(this._PTSNormalize(sample.dts,nextAvcDts) - this._initDTS,0);
-    firstPTS =  Math.max(this._PTSNormalize(sample.pts,nextAvcDts) - this._initDTS,0);
+    firstDTS =  Math.max(this._PTSNormalize(sample.dts - this._initDTS,nextAvcDts),0);
+    firstPTS =  Math.max(this._PTSNormalize(sample.pts - this._initDTS,nextAvcDts),0);
 
     // check timestamp continuity (to remove inter-fragment gap/hole)
     let delta = Math.round((firstDTS - nextAvcDts) / 90);
@@ -203,8 +196,8 @@ class MP4Remuxer {
 
     // compute lastPTS/lastDTS
     sample = inputSamples[inputSamples.length-1];
-    lastDTS = Math.max(this._PTSNormalize(sample.dts,nextAvcDts) - this._initDTS,0);
-    lastPTS = Math.max(this._PTSNormalize(sample.pts,nextAvcDts) - this._initDTS,0);
+    lastDTS = Math.max(this._PTSNormalize(sample.dts - this._initDTS,nextAvcDts) ,0);
+    lastPTS = Math.max(this._PTSNormalize(sample.pts - this._initDTS,nextAvcDts) ,0);
     lastPTS = Math.max(lastPTS, lastDTS);
 
     let vendor = navigator.vendor, userAgent = navigator.userAgent,
@@ -225,13 +218,13 @@ class MP4Remuxer {
         sample.dts = firstDTS + i*pes2mp4ScaleFactor*mp4SampleDuration;
       } else {
         // ensure sample monotonic DTS
-        sample.dts = Math.max(this._PTSNormalize(sample.dts, nextAvcDts) - this._initDTS,firstDTS);
+        sample.dts = Math.max(this._PTSNormalize(sample.dts - this._initDTS, nextAvcDts),firstDTS);
         // ensure dts is a multiple of scale factor to avoid rounding issues
         sample.dts = Math.round(sample.dts/pes2mp4ScaleFactor)*pes2mp4ScaleFactor;
       }
       // we normalize PTS against nextAvcDts, we also substract initDTS (some streams don't start @ PTS O)
       // and we ensure that computed value is greater or equal than sample DTS
-      sample.pts = Math.max(this._PTSNormalize(sample.pts,nextAvcDts) - this._initDTS, sample.dts);
+      sample.pts = Math.max(this._PTSNormalize(sample.pts - this._initDTS,nextAvcDts) , sample.dts);
       // ensure pts is a multiple of scale factor to avoid rounding issues
       sample.pts = Math.round(sample.pts/pes2mp4ScaleFactor)*pes2mp4ScaleFactor;
     }
@@ -334,8 +327,10 @@ class MP4Remuxer {
       startDTS: firstDTS / pesTimeScale,
       endDTS: this.nextAvcDts / pesTimeScale,
       type: 'video',
+      flush: flush,
       nb: outputSamples.length
     };
+    this.endPTS = data.endPTS;
     this.observer.trigger(Event.FRAG_PARSING_DATA, data);
     return data;
   }
@@ -425,7 +420,7 @@ class MP4Remuxer {
       if (lastDTS !== undefined) {
         ptsnorm = this._PTSNormalize(pts, lastDTS);
         dtsnorm = this._PTSNormalize(dts, lastDTS);
-        mp4Sample.duration = (dtsnorm - lastDTS) / pes2mp4ScaleFactor;
+        mp4Sample.duration = Math.round((dtsnorm - lastDTS) / pes2mp4ScaleFactor);
       } else {
         ptsnorm = this._PTSNormalize(pts, nextAacPts);
         dtsnorm = this._PTSNormalize(dts, nextAacPts);

@@ -25,7 +25,7 @@ var DemuxerWorker = function (self) {
         self.demuxer = new DemuxerInline(observer, data.typeSupported, JSON.parse(data.config));
         break;
       case 'demux':
-        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.first, data.final);
+        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.first, data.final, data.lastSN);
         break;
       default:
         break;
@@ -43,8 +43,8 @@ var DemuxerWorker = function (self) {
     self.postMessage(objData, [objData.data1, objData.data2]);
   });
 
-  observer.on(Event.FRAG_PARSED, function(event) {
-    self.postMessage({event: event});
+  observer.on(Event.FRAG_PARSED, function(event, data) {
+    self.postMessage({event: event, data: data});
   });
 
   observer.on(Event.FRAG_SKIP_COUNT, function(event, data) {

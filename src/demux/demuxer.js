@@ -46,16 +46,16 @@ class Demuxer {
     }
   }
 
-  pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final) {
+  pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final, lastSN) {
     if (this.w) {
       // post fragment payload as transferable objects (no copy)
-      this.w.postMessage({cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn : sn, duration: duration, first: first, final: final}, [data]);
+      this.w.postMessage({cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn : sn, duration: duration, first: first, final: final, lastSN: lastSN}, [data]);
     } else {
-      this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final);
+      this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final, lastSN);
     }
   }
 
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata) {
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata, lastSN) {
     if (data.first) {
       this.trail = new Uint8Array(0);
       this.trail.first = true;
@@ -104,16 +104,15 @@ class Demuxer {
 
       var localthis = this;
       this.decrypter.decrypt(data, decryptdata.key, data.first&&decryptdata.iv, function(decryptedData){
-        localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final);
+        localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final, lastSN);
       });
     } else {
-      this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final);
+      this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final, lastSN);
     }
   }
 
   onWorkerMessage(ev) {
     var data = ev.data;
-    //console.log('onWorkerMessage:' + data.event);
     switch(data.event) {
       case Event.FRAG_PARSING_INIT_SEGMENT:
         var obj = {};
