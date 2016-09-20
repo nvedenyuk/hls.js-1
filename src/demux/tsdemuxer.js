@@ -115,10 +115,8 @@
     }
     if (first) {
       this.lastContiguous = sn === this.lastSN+1;
-      this.keyFrames = 0;
-      this.skipCount = 0;
-      this.fragStartPts = undefined;
-      this.fragStartDts = undefined;
+      this.keyFrames = this.skipCount = this.remuxCount = 0;
+      this.fragStartPts = this.fragStartDts = undefined;
       this.fragStartPos = this._avcTrack.samples.length;
       this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset*this.remuxer.PES_TIMESCALE;
     }
@@ -129,8 +127,7 @@
         id3Id = this._id3Track.id;
 
     // don't parse last TS packet if incomplete
-    len -= len%188;
-
+    len -= len % 188;
     // loop through TS packets
     for (start = 0; start < len; start += 188) {
       if (data[start] === 0x47) {
@@ -290,8 +287,8 @@
       if (Math.abs(startDTS-this.nextAvcDts)>90) {
         startPTS -= (startDTS-this.nextAvcDts)/this.remuxer.PES_TIMESCALE;
       }
-      if (samples.length>this.fragStartPos && this.fragStartDts !== undefined) {
-        endPTS += (sample.dts-this.fragStartDts)/(samples.length-this.fragStartPos)/this.remuxer.PES_TIMESCALE;
+      if (samples.length>this.fragStartPos+1 && this.fragStartDts !== undefined) {
+        endPTS += (sample.dts-this.fragStartDts)/(samples.length-this.fragStartPos-1)/this.remuxer.PES_TIMESCALE;
       }
     }
     if (!flush) {
@@ -311,7 +308,8 @@
         this._filterSamples(this._txtTrack, endDts, _saveTextSamples);
       }
     }
-    if (flush && this._avcTrack.samples.length+this._aacTrack.samples.length || maxk>0) {
+    if ((flush || final && !this.remuxCount) && this._avcTrack.samples.length+this._aacTrack.samples.length || maxk>0) {
+      this.remuxCount++;
       this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset,
           this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous, data, flush);
       this.lastContiguous = undefined;
