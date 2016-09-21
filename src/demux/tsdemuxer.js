@@ -115,7 +115,8 @@
     }
     if (first) {
       this.lastContiguous = sn === this.lastSN+1;
-      this.keyFrames = this.skipCount = this.remuxAVCCount = this.remuxAACCount = 0;
+      this.fragStats = {keyFrames: 0, dropped: 0, segment: sn, level: level};
+      this.remuxAVCCount = this.remuxAACCount = 0;
       this.fragStartPts = this.fragStartDts = undefined;
       this.fragStartAVCPos = this._avcTrack.samples.length;
       this.fragStartAACPos = this._aacTrack.samples.length;
@@ -225,9 +226,6 @@
         this._parseID3PES(this._parsePES(id3Data));
         this._clearID3Data();
       }
-      if (!this.keyFrames && avcId!==-1) {
-        this.observer.trigger(Event.ERROR, {type : ErrorTypes.MEDIA_ERROR, details: ErrorDetails.FRAG_PARSING_ERROR, fatal: false, reason: 'No keyframes in segment '+sn});
-      }
       this.lastSN = sn;
     }
     if (this.fragStartPts === undefined && this._avcTrack.samples.length>this.fragStartAVCPos) {
@@ -237,10 +235,10 @@
       this.fragStartDts = this._avcTrack.samples[0].dts;
     }
     this.remux(null, final, final && sn === lastSN);
-    if (this.skipCount) {
-      this.observer.trigger(Event.FRAG_SKIP_COUNT, {skip: this.skipCount});
+    if (final)
+    {
+      this.observer.trigger(Event.FRAG_STATISTICS, this.fragStats);
     }
-
   }
 
   _recalcTrack(track) {
@@ -285,16 +283,20 @@
       let sample = samples[samples.length-1];
       let nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous) ? this.remuxer.nextAacPts/this.remuxer.PES_TIMESCALE : this.timeOffset;
       let expectedSampleDuration = 1024/this._aacTrack.audiosamplerate;
-      startPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS,this.nextAvcDts),0)/this.remuxer.PES_TIMESCALE;
-      endPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS,this.nextAvcDts),0)/this.remuxer.PES_TIMESCALE;
+      let videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS,this.nextAvcDts),0)/this.remuxer.PES_TIMESCALE;
+      let videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS,this.nextAvcDts),0)/this.remuxer.PES_TIMESCALE;
       if (Math.abs(startDTS-this.nextAvcDts)>90) {
-        startPTS -= (startDTS-this.nextAvcDts)/this.remuxer.PES_TIMESCALE;
+        videoStartPTS -= (startDTS-this.nextAvcDts)/this.remuxer.PES_TIMESCALE;
       }
-      startPTS = Math.max(startPTS, nextAacPTS);
       if ((samples.length+this.remuxAVCCount)>this.fragStartAVCPos+1 && this.fragStartDts !== undefined) {
-        endPTS += (sample.dts-this.fragStartDts)/(samples.length+this.remuxAVCCount-this.fragStartAVCPos-1)/this.remuxer.PES_TIMESCALE;
+        videoEndPTS += (sample.dts-this.fragStartDts)/(samples.length+this.remuxAVCCount-this.fragStartAVCPos-1)/this.remuxer.PES_TIMESCALE;
       }
-      endPTS = Math.min(endPTS, nextAacPTS+expectedSampleDuration*(this._aacTrack.samples.length+this.remuxAACCount));
+      startPTS = Math.max(videoStartPTS, nextAacPTS);
+      endPTS = Math.min(videoEndPTS, nextAacPTS+expectedSampleDuration*(this._aacTrack.samples.length+this.remuxAACCount));
+      let AVUnsync;
+      if ((AVUnsync = startPTS-endPTS+videoEndPTS-videoStartPTS)>0.2) {
+        this.fragStats.AVUnsync = AVUnsync;
+      }
     }
     if (!flush) {
       // save samples and break by GOP
@@ -317,7 +319,7 @@
       this.remuxAVCCount += this._avcTrack.samples.length;
       this.remuxAACCount += this._aacTrack.samples.length;
       this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset,
-          this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous, data, flush);
+          this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous, data, flush, this.fragStats);
       this.lastContiguous = undefined;
       this.nextStartPts = this.remuxer.endPTS;
       this._avcTrack.samples = _saveAVCSamples;
@@ -379,7 +381,8 @@
           }
           break;
         default:
-        logger.log('unkown stream type:'  + data[offset]);
+          this.fragStats.unknownStream = (this.fragStats.unknownStream|0)+1;
+          logger.log('unkown stream type:'  + data[offset]);
         break;
       }
       // move to the next table entry
@@ -640,7 +643,7 @@
           (track.sps && (samples.length || this.contiguous))) {
         avcSample = {units: { units : units2, length : length}, pts: pes.pts, dts: pes.dts, key: key};
         if (key) {
-          this.keyFrames++;
+          this.fragStats.keyFrames++;
         }
         // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
         samples.push(avcSample);
@@ -648,7 +651,7 @@
         track.nbNalu += units2.length;
       }
       else {
-        this.skipCount++;
+        this.fragStats.dropped++;
       }
     }
   }

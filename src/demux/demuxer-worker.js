@@ -47,7 +47,7 @@ var DemuxerWorker = function (self) {
     self.postMessage({event: event, data: data});
   });
 
-  observer.on(Event.FRAG_SKIP_COUNT, function(event, data) {
+  observer.on(Event.FRAG_STATISTICS, function(event, data) {
     self.postMessage({event: event, data: data});
   });
 

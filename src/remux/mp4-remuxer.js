@@ -35,7 +35,7 @@ class MP4Remuxer {
     this.ISGenerated = false;
   }
 
-  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, data, flush) {
+  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, data, flush,stats) {
 
     // dummy
     data = null;
@@ -52,23 +52,23 @@ class MP4Remuxer {
       // calculated in remuxAudio.
       //logger.log('nb AAC samples:' + audioTrack.samples.length);
       if (audioTrack.samples.length) {
-        let audioData = this.remuxAudio(audioTrack,timeOffset,contiguous);
+        let audioData = this.remuxAudio(audioTrack,timeOffset,contiguous,stats);
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
           let audioTrackLength;
           if (audioData) {
             audioTrackLength = audioData.endPTS - audioData.startPTS;
           }
-          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,flush);
+          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,flush,stats);
         }
       } else {
         let videoData;
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
-          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,flush);
+          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,flush,stats);
         }
         if (videoData && audioTrack.codec) {
-          this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, videoData);
+          this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, videoData, stats);
         }
       }
     }
@@ -154,7 +154,7 @@ class MP4Remuxer {
     }
   }
 
-  remuxVideo(track, timeOffset, contiguous, audioTrackLength, flush) {
+  remuxVideo(track, timeOffset, contiguous, audioTrackLength, flush,stats) {
     var offset = 8,
         pesTimeScale = this.PES_TIMESCALE,
         pes2mp4ScaleFactor = this.PES2MP4SCALEFACTOR,
@@ -179,11 +179,7 @@ class MP4Remuxer {
     // check timestamp continuity (to remove inter-fragment gap/hole)
     let delta = Math.round((firstDTS - nextAvcDts) / 90);
     if (delta) {
-      if (delta > 1) {
-        logger.log(`AVC:${delta} ms hole between fragments detected,filling it`);
-      } else if (delta < -1) {
-        logger.log(`AVC:${(-delta)} ms overlapping between fragments detected`);
-      }
+      logger.log(`AVC:${Math.abs(delta)} ms ${delta>0 ? 'hole' : 'overlapping'} between fragments detected`);
       // remove hole/gap : set DTS to next expected DTS
       firstDTS = nextAvcDts;
       inputSamples[0].dts = firstDTS + this._initDTS;
@@ -191,6 +187,8 @@ class MP4Remuxer {
       firstPTS = Math.max(firstPTS - delta*90, nextAvcDts);
       inputSamples[0].pts = firstPTS + this._initDTS;
       logger.log(`Video/PTS/DTS adjusted: ${firstPTS}/${firstDTS},delta:${delta}`);
+      stats.videoGap = stats.videoGap||[];
+      stats.videoGap.push(delta);
     }
     nextDTS = firstDTS;
 
@@ -334,7 +332,7 @@ class MP4Remuxer {
     return data;
   }
 
-  remuxAudio(track, timeOffset, contiguous) {
+  remuxAudio(track, timeOffset, contiguous, stats) {
     let pesTimeScale = this.PES_TIMESCALE,
         mp4timeScale = track.timescale,
         pes2mp4ScaleFactor = pesTimeScale/mp4timeScale,
@@ -369,6 +367,11 @@ class MP4Remuxer {
       var sample = samples0[i],
           ptsNorm = this._PTSNormalize(sample.pts - this._initDTS, nextAacPts),
           delta = ptsNorm - nextPtsNorm;
+
+      if (Math.abs(delta)>pesFrameDuration/2) {
+          stats.audioGap = stats.audioGap||[];
+          stats.audioGap.push(delta/90);
+      }
 
       // If we're overlapping by more than half a duration, drop this sample
       if (delta < (-0.5 * pesFrameDuration)) {
@@ -536,7 +539,7 @@ class MP4Remuxer {
     return null;
   }
 
-  remuxEmptyAudio(track, timeOffset, contiguous, videoData) {
+  remuxEmptyAudio(track, timeOffset, contiguous, videoData,stats) {
     let pesTimeScale = this.PES_TIMESCALE,
         mp4timeScale = track.timescale ? track.timescale : track.audiosamplerate,
         pes2mp4ScaleFactor = pesTimeScale/mp4timeScale,
@@ -557,6 +560,7 @@ class MP4Remuxer {
 
     // Can't remux if we can't generate a silent frame...
     if (!silentFrame) {
+      stats.noSilentFrame = (stats.noSilentFrame|0)+1;
       logger.trace('Unable to remuxEmptyAudio since we were unable to get a silent frame for given audio codec!');
       return;
     }
@@ -569,7 +573,7 @@ class MP4Remuxer {
     }
     track.samples = samples;
 
-    this.remuxAudio(track, timeOffset, contiguous);
+    this.remuxAudio(track, timeOffset, contiguous,stats);
   }
 
   remuxID3(track,timeOffset) {

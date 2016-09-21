@@ -43,7 +43,6 @@ class StreamController extends EventHandler {
       Event.FRAG_PARSING_INIT_SEGMENT,
       Event.FRAG_PARSING_DATA,
       Event.FRAG_PARSED,
-      Event.FRAG_SKIP_COUNT,
       Event.ERROR,
       Event.BUFFER_APPENDED,
       Event.BUFFER_FLUSHED);
@@ -51,7 +50,6 @@ class StreamController extends EventHandler {
     this.config = hls.config;
     this.audioCodecSwap = false;
     this.ticks = 0;
-    this.skipCount = 0;
     this.ontick = this.tick.bind(this);
   }
 
@@ -980,10 +978,6 @@ class StreamController extends EventHandler {
       this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
       this._checkAppendedParsed();
     }
-  }
-
-  onFragSkipCount(data){
-    this.skipCount += data.skip;
   }
 
   onBufferAppended() {
