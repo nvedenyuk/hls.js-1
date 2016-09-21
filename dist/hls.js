@@ -5082,9 +5082,10 @@ var TSDemuxer = function () {
       }
       if (first) {
         this.lastContiguous = sn === this.lastSN + 1;
-        this.keyFrames = this.skipCount = this.remuxCount = 0;
+        this.keyFrames = this.skipCount = this.remuxAVCCount = this.remuxAACCount = 0;
         this.fragStartPts = this.fragStartDts = undefined;
-        this.fragStartPos = this._avcTrack.samples.length;
+        this.fragStartAVCPos = this._avcTrack.samples.length;
+        this.fragStartAACPos = this._aacTrack.samples.length;
         this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset * this.remuxer.PES_TIMESCALE;
       }
       this.currentSN = sn;
@@ -5196,8 +5197,8 @@ var TSDemuxer = function () {
         }
         this.lastSN = sn;
       }
-      if (this.fragStartPts === undefined && this._avcTrack.samples.length > this.fragStartPos) {
-        this.fragStartPts = this._avcTrack.samples[this.fragStartPos].pts;
+      if (this.fragStartPts === undefined && this._avcTrack.samples.length > this.fragStartAVCPos) {
+        this.fragStartPts = this._avcTrack.samples[this.fragStartAVCPos].pts;
       }
       if (this.fragStartDts === undefined && this._avcTrack.samples.length) {
         this.fragStartDts = this._avcTrack.samples[0].dts;
@@ -5253,14 +5254,18 @@ var TSDemuxer = function () {
         var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - this.remuxer.PES_TIMESCALE * this.timeOffset : this.remuxer._initDTS;
         var startDTS = Math.max(this.remuxer._PTSNormalize((this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts) - initDTS, this.nextAvcDts), 0);
         var sample = samples[samples.length - 1];
+        var nextAacPTS = this.lastContiguous !== undefined && this.lastContiguous || this.contiguous ? this.remuxer.nextAacPts / this.remuxer.PES_TIMESCALE : this.timeOffset;
+        var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
         startPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / this.remuxer.PES_TIMESCALE;
         endPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / this.remuxer.PES_TIMESCALE;
         if (Math.abs(startDTS - this.nextAvcDts) > 90) {
           startPTS -= (startDTS - this.nextAvcDts) / this.remuxer.PES_TIMESCALE;
         }
-        if (samples.length > this.fragStartPos + 1 && this.fragStartDts !== undefined) {
-          endPTS += (sample.dts - this.fragStartDts) / (samples.length - this.fragStartPos - 1) / this.remuxer.PES_TIMESCALE;
+        startPTS = Math.max(startPTS, nextAacPTS);
+        if (samples.length + this.remuxAVCCount > this.fragStartAVCPos + 1 && this.fragStartDts !== undefined) {
+          endPTS += (sample.dts - this.fragStartDts) / (samples.length + this.remuxAVCCount - this.fragStartAVCPos - 1) / this.remuxer.PES_TIMESCALE;
         }
+        endPTS = Math.min(endPTS, nextAacPTS + expectedSampleDuration * (this._aacTrack.samples.length + this.remuxAACCount));
       }
       if (!flush) {
         // save samples and break by GOP
@@ -5279,8 +5284,9 @@ var TSDemuxer = function () {
           this._filterSamples(this._txtTrack, endDts, _saveTextSamples);
         }
       }
-      if ((flush || final && !this.remuxCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
-        this.remuxCount++;
+      if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
+        this.remuxAVCCount += this._avcTrack.samples.length;
+        this.remuxAACCount += this._aacTrack.samples.length;
         this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous, data, flush);
         this.lastContiguous = undefined;
         this.nextStartPts = this.remuxer.endPTS;
