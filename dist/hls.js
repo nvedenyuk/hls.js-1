@@ -2117,10 +2117,10 @@ var StreamController = function (_EventHandler) {
           // previous frag         matching fragment         next frag
           //  return -1             return 0                 return 1
           //logger.log(`level/sn/start/end/bufEnd:${level}/${candidate.sn}/${candidate.start}/${(candidate.start+candidate.duration)}/${bufferEnd}`);
-          if (candidate.start + candidate.duration - maxFragLookUpTolerance <= bufferEnd) {
+          if (candidate.start + candidate.duration - candidate.PTSDTSshift - maxFragLookUpTolerance <= bufferEnd) {
             return 1;
           } // if maxFragLookUpTolerance will have negative value then don't return -1 for first element
-          else if (candidate.start - maxFragLookUpTolerance > bufferEnd && candidate.start) {
+          else if (candidate.start - candidate.PTSDTSshift - maxFragLookUpTolerance > bufferEnd && candidate.start) {
               return -1;
             }
           return 0;
@@ -2733,7 +2733,7 @@ var StreamController = function (_EventHandler) {
         var level = this.levels[this.fragCurrent.level];
         this.stats.tparsed = performance.now();
         this.state = State.PARSED;
-        var drift = _levelHelper2.default.updateFragPTS(level.details, this.fragCurrent.sn, data.startPTS, data.endPTS);
+        var drift = _levelHelper2.default.updateFragPTS(level.details, this.fragCurrent.sn, data.startPTS, data.endPTS, data.PTSDTSshift);
         this.hls.trigger(_events2.default.LEVEL_PTS_UPDATED, { details: level.details, level: this.fragCurrent.level, drift: drift });
         this._checkAppendedParsed();
       }
@@ -5078,7 +5078,7 @@ var TSDemuxer = function () {
         this.lastContiguous = sn === this.lastSN + 1;
         this.fragStats = { keyFrames: 0, dropped: 0, segment: sn, level: level };
         this.remuxAVCCount = this.remuxAACCount = 0;
-        this.fragStartPts = this.fragStartDts = undefined;
+        this.fragStartPts = this.fragStartDts = this.gopStartDts = undefined;
         this.fragStartAVCPos = this._avcTrack.samples.length;
         this.fragStartAACPos = this._aacTrack.samples.length;
         this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset * this.remuxer.PES_TIMESCALE;
@@ -5191,9 +5191,10 @@ var TSDemuxer = function () {
       }
       if (this.fragStartPts === undefined && this._avcTrack.samples.length > this.fragStartAVCPos) {
         this.fragStartPts = this._avcTrack.samples[this.fragStartAVCPos].pts;
+        this.fragStartDts = this._avcTrack.samples[this.fragStartAVCPos].dts;
       }
-      if (this.fragStartDts === undefined && this._avcTrack.samples.length) {
-        this.fragStartDts = this._avcTrack.samples[0].dts;
+      if (this.gopStartDts === undefined && this._avcTrack.samples.length) {
+        this.gopStartPts = this._avcTrack.samples[0].pts;
       }
       this.remux(null, final, final && sn === lastSN);
       if (final) {
@@ -5243,25 +5244,28 @@ var TSDemuxer = function () {
           startPTS,
           endPTS;
       if (samples.length && final) {
-        var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - this.remuxer.PES_TIMESCALE * this.timeOffset : this.remuxer._initDTS;
-        var startDTS = Math.max(this.remuxer._PTSNormalize((this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts) - initDTS, this.nextAvcDts), 0);
+        var timescale = this.remuxer.PES_TIMESCALE;
+        this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - (this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts)) / timescale;
+        var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - timescale * this.timeOffset : this.remuxer._initDTS;
+        var startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDts === undefined ? samples[0].dts : this.gopStartDts) - initDTS, this.nextAvcDts), 0);
         var sample = samples[samples.length - 1];
-        var nextAacPTS = this.lastContiguous !== undefined && this.lastContiguous || this.contiguous ? this.remuxer.nextAacPts / this.remuxer.PES_TIMESCALE : this.timeOffset;
+        var nextAacPTS = this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
         var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
-        var videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / this.remuxer.PES_TIMESCALE;
-        var videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / this.remuxer.PES_TIMESCALE;
+        var videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / timescale;
+        var videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / timescale;
         if (Math.abs(startDTS - this.nextAvcDts) > 90) {
-          videoStartPTS -= (startDTS - this.nextAvcDts) / this.remuxer.PES_TIMESCALE;
+          videoStartPTS -= (startDTS - this.nextAvcDts) / timescale;
         }
         if (samples.length + this.remuxAVCCount > this.fragStartAVCPos + 1 && this.fragStartDts !== undefined) {
-          videoEndPTS += (sample.dts - this.fragStartDts) / (samples.length + this.remuxAVCCount - this.fragStartAVCPos - 1) / this.remuxer.PES_TIMESCALE;
+          videoEndPTS += (sample.dts - this.fragStartDts) / (samples.length + this.remuxAVCCount - this.fragStartAVCPos - 1) / timescale;
         }
-        startPTS = Math.max(videoStartPTS, nextAacPTS);
-        endPTS = Math.min(videoEndPTS, nextAacPTS + expectedSampleDuration * (this._aacTrack.samples.length + this.remuxAACCount));
+        startPTS = Math.max(videoStartPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
+        endPTS = Math.min(videoEndPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
         var AVUnsync = void 0;
-        if ((AVUnsync = startPTS - endPTS + videoEndPTS - videoStartPTS) > 0.2) {
+        if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
           this.fragStats.AVUnsync = AVUnsync;
         }
+        // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
       }
       if (!flush) {
         // save samples and break by GOP
@@ -5297,7 +5301,7 @@ var TSDemuxer = function () {
       }
       //notify end of parsing
       if (final) {
-        this.observer.trigger(_events2.default.FRAG_PARSED, { startPTS: startPTS, endPTS: endPTS });
+        this.observer.trigger(_events2.default.FRAG_PARSED, { startPTS: startPTS, endPTS: endPTS, PTSDTSshift: this.fragStats.PTSDTSshift });
       }
     }
   }, {
@@ -5371,6 +5375,16 @@ var TSDemuxer = function () {
           pesDts,
           payloadStartOffset,
           data = stream.data;
+      // we might need up to 19 bytes to read PES header
+      // if first chunk of data is less than 19 bytes, let's merge it with following ones until we get 19 bytes
+      // usually only one merge is needed (and this is rare ...)
+      while (data[0].length < 19 && data.length > 1) {
+        var newData = new Uint8Array(data[0].length + data[1].length);
+        newData.set(data[0]);
+        newData.set(data[1], data[0].length);
+        data[0] = newData;
+        data.splice(1, 1);
+      }
       //retrieve PTS/DTS from first fragment
       frag = data[0];
       pesPrefix = (frag[0] << 16) + (frag[1] << 8) + frag[2];
@@ -6357,7 +6371,7 @@ var LevelHelper = function () {
 
       // if at least one fragment contains PTS info, recompute PTS information for all fragments
       if (PTSFrag) {
-        LevelHelper.updateFragPTS(newDetails, PTSFrag.sn, PTSFrag.startPTS, PTSFrag.endPTS);
+        LevelHelper.updateFragPTS(newDetails, PTSFrag.sn, PTSFrag.startPTS, PTSFrag.endPTS, PTSFrag.PTSDTSshift || 0);
       } else {
         // ensure that delta is within oldfragments range
         // also adjust sliding in case delta is 0 (we could have old=[50-60] and new=old=[50-61])
@@ -6377,7 +6391,7 @@ var LevelHelper = function () {
     }
   }, {
     key: 'updateFragPTS',
-    value: function updateFragPTS(details, sn, startPTS, endPTS) {
+    value: function updateFragPTS(details, sn, startPTS, endPTS, PTSDTSshift) {
       var fragIdx, fragments, frag, i;
       // exit if sn out of range
       if (sn < details.startSN || sn > details.endSN) {
@@ -6396,6 +6410,8 @@ var LevelHelper = function () {
       frag.start = frag.startPTS = startPTS;
       frag.endPTS = endPTS;
       frag.duration = endPTS - startPTS;
+      frag.PTSDTSshift = PTSDTSshift || 0;
+
       // adjust fragment PTS/duration from seqnum-1 to frag 0
       for (i = fragIdx; i > 0; i--) {
         LevelHelper.updatePTS(fragments, i, i - 1);
@@ -6438,6 +6454,9 @@ var LevelHelper = function () {
         } else {
           fragTo.start = fragFrom.start - fragTo.duration;
         }
+      }
+      if (toIdx > fromIdx && !fragTo.PTSDTSshift) {
+        fragTo.PTSDTSshift = fragFrom.PTSDTSshift || 0;
       }
     }
   }]);
@@ -6533,7 +6552,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-20';
+      return '0.6.1-21';
     }
   }, {
     key: 'Events',
@@ -7378,7 +7397,7 @@ var PlaylistLoader = function (_EventHandler) {
               fragdecryptdata = this.fragmentDecryptdataFromLevelkey(levelkey, sn);
               var url = result[2] ? this.resolve(result[2], baseurl) : null;
               tagList.push(result);
-              frag = { url: url, duration: duration, start: totalduration, sn: sn, level: id, cc: cc, byteRangeStartOffset: byteRangeStartOffset, byteRangeEndOffset: byteRangeEndOffset, decryptdata: fragdecryptdata, programDateTime: programDateTime, tagList: tagList };
+              frag = { url: url, duration: duration, start: totalduration, sn: sn, level: id, cc: cc, byteRangeStartOffset: byteRangeStartOffset, byteRangeEndOffset: byteRangeEndOffset, decryptdata: fragdecryptdata, programDateTime: programDateTime, tagList: tagList, PTSDTSshift: 0 };
               level.fragments.push(frag);
               totalduration += duration;
               byteRangeStartOffset = null;
@@ -8178,7 +8197,7 @@ var MP4Remuxer = function () {
           }
         };
         if (computePTSDTS) {
-          // remember first PTS of this demuxing context. for audio, PTS + DTS ...
+          // remember first PTS of this demuxing context. for audio, PTS = DTS
           initPTS = initDTS = audioSamples[0].pts - pesTimeScale * timeOffset;
         }
       }
@@ -8228,6 +8247,17 @@ var MP4Remuxer = function () {
           inputSamples = track.samples,
           outputSamples = [];
 
+      // handle broken streams with PTS < DTS, tolerance up 200ms (18000 in 90kHz timescale)
+      var PTSDTSshift = inputSamples.reduce(function (prev, curr) {
+        return Math.max(Math.min(prev, curr.pts - curr.dts), -18000);
+      }, 0);
+      if (PTSDTSshift < 0) {
+        _logger.logger.warn('PTS < DTS detected in video samples, shifting DTS by ' + Math.round(PTSDTSshift / 90) + ' ms to overcome this issue');
+        for (var i = 0; i < inputSamples.length; i++) {
+          inputSamples[i].dts += PTSDTSshift;
+        }
+      }
+
       // PTS is coded on 33bits, and can loop from -2^32 to 2^32
       // PTSNormalize will make PTS/DTS value monotonic, we use last known DTS value as reference value
       // if parsed fragment is contiguous with last one, let's use last DTS value as reference
@@ -8272,11 +8302,11 @@ var MP4Remuxer = function () {
       }
 
       // normalize all PTS/DTS now ...
-      for (var i = 0; i < inputSamples.length; i++) {
-        var _sample = inputSamples[i];
+      for (var _i = 0; _i < inputSamples.length; _i++) {
+        var _sample = inputSamples[_i];
         if (isSafari) {
           // sample DTS is computed using a constant decoding offset (mp4SampleDuration) between samples
-          _sample.dts = firstDTS + i * pes2mp4ScaleFactor * mp4SampleDuration;
+          _sample.dts = firstDTS + _i * pes2mp4ScaleFactor * mp4SampleDuration;
         } else {
           // ensure sample monotonic DTS
           _sample.dts = Math.max(this._PTSNormalize(_sample.dts - this._initDTS, nextAvcDts), firstDTS);
@@ -8297,8 +8327,8 @@ var MP4Remuxer = function () {
       view.setUint32(0, mdat.byteLength);
       mdat.set(_mp4Generator2.default.types.mdat, 4);
 
-      for (var _i = 0; _i < inputSamples.length; _i++) {
-        var avcSample = inputSamples[_i],
+      for (var _i2 = 0; _i2 < inputSamples.length; _i2++) {
+        var avcSample = inputSamples[_i2],
             mp4SampleLength = 0,
             compositionTimeOffset = void 0;
         // convert NALU bitstream to MP4 format (prepend NALU with size field)
@@ -8313,11 +8343,11 @@ var MP4Remuxer = function () {
 
         if (!isSafari) {
           // expected sample duration is the Decoding Timestamp diff of consecutive samples
-          if (_i < inputSamples.length - 1) {
-            mp4SampleDuration = inputSamples[_i + 1].dts - avcSample.dts;
+          if (_i2 < inputSamples.length - 1) {
+            mp4SampleDuration = inputSamples[_i2 + 1].dts - avcSample.dts;
           } else {
             var config = this.config,
-                lastFrameDuration = avcSample.dts - inputSamples[_i > 0 ? _i - 1 : _i].dts;
+                lastFrameDuration = avcSample.dts - inputSamples[_i2 > 0 ? _i2 - 1 : _i2].dts;
             if (config.stretchShortVideoTrack) {
               // In some cases, a segment's audio track duration may exceed the video track duration.
               // Since we've already remuxed audio, and we know how long the audio track is, we look to

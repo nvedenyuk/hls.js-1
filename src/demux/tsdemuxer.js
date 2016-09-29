@@ -117,7 +117,7 @@
       this.lastContiguous = sn === this.lastSN+1;
       this.fragStats = {keyFrames: 0, dropped: 0, segment: sn, level: level};
       this.remuxAVCCount = this.remuxAACCount = 0;
-      this.fragStartPts = this.fragStartDts = undefined;
+      this.fragStartPts = this.fragStartDts = this.gopStartDts = undefined;
       this.fragStartAVCPos = this._avcTrack.samples.length;
       this.fragStartAACPos = this._aacTrack.samples.length;
       this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset*this.remuxer.PES_TIMESCALE;
@@ -230,9 +230,10 @@
     }
     if (this.fragStartPts === undefined && this._avcTrack.samples.length>this.fragStartAVCPos) {
       this.fragStartPts = this._avcTrack.samples[this.fragStartAVCPos].pts;
+      this.fragStartDts = this._avcTrack.samples[this.fragStartAVCPos].dts;
     }
-    if (this.fragStartDts === undefined && this._avcTrack.samples.length) {
-      this.fragStartDts = this._avcTrack.samples[0].dts;
+    if (this.gopStartDts === undefined && this._avcTrack.samples.length) {
+      this.gopStartPts = this._avcTrack.samples[0].pts;
     }
     this.remux(null, final, final && sn === lastSN);
     if (final)
@@ -277,26 +278,29 @@
         _saveTextSamples = [], maxk, samples = this._avcTrack.samples,
         startPTS, endPTS;
     if (samples.length && final) {
+      let timescale = this.remuxer.PES_TIMESCALE;
+      this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts)-(this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts))/timescale;
       let initDTS = this.remuxer._initDTS === undefined ?
-        samples[0].dts - this.remuxer.PES_TIMESCALE * this.timeOffset : this.remuxer._initDTS;
-      let startDTS = Math.max(this.remuxer._PTSNormalize((this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts) - initDTS,this.nextAvcDts),0);
+        samples[0].dts -timescale * this.timeOffset : this.remuxer._initDTS;
+      let startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDts === undefined ? samples[0].dts : this.gopStartDts) - initDTS,this.nextAvcDts),0);
       let sample = samples[samples.length-1];
-      let nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous) ? this.remuxer.nextAacPts/this.remuxer.PES_TIMESCALE : this.timeOffset;
+      let nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxer.nextAacPts) ? this.remuxer.nextAacPts/timescale : this.timeOffset;
       let expectedSampleDuration = 1024/this._aacTrack.audiosamplerate;
-      let videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS,this.nextAvcDts),0)/this.remuxer.PES_TIMESCALE;
-      let videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS,this.nextAvcDts),0)/this.remuxer.PES_TIMESCALE;
+      let videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS,this.nextAvcDts),0)/timescale;
+      let videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS,this.nextAvcDts),0)/timescale;
       if (Math.abs(startDTS-this.nextAvcDts)>90) {
-        videoStartPTS -= (startDTS-this.nextAvcDts)/this.remuxer.PES_TIMESCALE;
+        videoStartPTS -= (startDTS-this.nextAvcDts)/timescale;
       }
       if ((samples.length+this.remuxAVCCount)>this.fragStartAVCPos+1 && this.fragStartDts !== undefined) {
-        videoEndPTS += (sample.dts-this.fragStartDts)/(samples.length+this.remuxAVCCount-this.fragStartAVCPos-1)/this.remuxer.PES_TIMESCALE;
+        videoEndPTS += (sample.dts-this.fragStartDts)/(samples.length+this.remuxAVCCount-this.fragStartAVCPos-1)/timescale;
       }
-      startPTS = Math.max(videoStartPTS, nextAacPTS);
-      endPTS = Math.min(videoEndPTS, nextAacPTS+expectedSampleDuration*(this._aacTrack.samples.length+this.remuxAACCount));
+      startPTS = Math.max(videoStartPTS, nextAacPTS+(this.fragStartAACPos-this.remuxAACCount)*expectedSampleDuration);
+      endPTS = Math.min(videoEndPTS, nextAacPTS+expectedSampleDuration*this._aacTrack.samples.length);
       let AVUnsync;
-      if ((AVUnsync = startPTS-endPTS+videoEndPTS-videoStartPTS)>0.2) {
+      if ((AVUnsync = endPTS-startPTS+videoStartPTS-videoEndPTS)>0.2) {
         this.fragStats.AVUnsync = AVUnsync;
       }
+      // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
     }
     if (!flush) {
       // save samples and break by GOP
@@ -333,7 +337,7 @@
     }
     //notify end of parsing
     if (final) {
-      this.observer.trigger(Event.FRAG_PARSED, {startPTS: startPTS, endPTS: endPTS});
+      this.observer.trigger(Event.FRAG_PARSED, {startPTS: startPTS, endPTS: endPTS, PTSDTSshift: this.fragStats.PTSDTSshift});
     }
   }
 
@@ -393,6 +397,16 @@
 
   _parsePES(stream) {
     var i = 0, frag, pesFlags, pesPrefix, pesLen, pesHdrLen, pesData, pesPts, pesDts, payloadStartOffset, data = stream.data;
+    // we might need up to 19 bytes to read PES header
+    // if first chunk of data is less than 19 bytes, let's merge it with following ones until we get 19 bytes
+    // usually only one merge is needed (and this is rare ...)
+    while(data[0].length < 19 && data.length > 1) {
+      let newData = new Uint8Array(data[0].length + data[1].length);
+      newData.set(data[0]);
+      newData.set(data[1], data[0].length);
+      data[0] = newData;
+      data.splice(1,1);
+    }
     //retrieve PTS/DTS from first fragment
     frag = data[0];
     pesPrefix = (frag[0] << 16) + (frag[1] << 8) + frag[2];

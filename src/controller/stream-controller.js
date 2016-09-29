@@ -354,10 +354,10 @@ class StreamController extends EventHandler {
             // previous frag         matching fragment         next frag
             //  return -1             return 0                 return 1
         //logger.log(`level/sn/start/end/bufEnd:${level}/${candidate.sn}/${candidate.start}/${(candidate.start+candidate.duration)}/${bufferEnd}`);
-        if ((candidate.start + candidate.duration - maxFragLookUpTolerance) <= bufferEnd) {
+        if ((candidate.start + candidate.duration - candidate.PTSDTSshift - maxFragLookUpTolerance) <= bufferEnd) {
           return 1;
         }// if maxFragLookUpTolerance will have negative value then don't return -1 for first element
-        else if (candidate.start - maxFragLookUpTolerance > bufferEnd && candidate.start) {
+        else if (candidate.start - candidate.PTSDTSshift - maxFragLookUpTolerance > bufferEnd && candidate.start) {
           return -1;
         }
         return 0;
@@ -974,7 +974,7 @@ class StreamController extends EventHandler {
       var level = this.levels[this.fragCurrent.level];
       this.stats.tparsed = performance.now();
       this.state = State.PARSED;
-      var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS);
+      var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS,data.PTSDTSshift);
       this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
       this._checkAppendedParsed();
     }
