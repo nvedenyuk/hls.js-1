@@ -1802,7 +1802,9 @@ var StreamController = function (_EventHandler) {
         var media = this.media,
             lastCurrentTime = this.lastCurrentTime;
         this.stopLoad();
-        this.demuxer = new _demuxer2.default(this.hls);
+        if (!this.demuxer) {
+          this.demuxer = new _demuxer2.default(this.hls);
+        }
         if (!this.timer) {
           this.timer = setInterval(this.ontick, 100);
         }
@@ -1837,10 +1839,6 @@ var StreamController = function (_EventHandler) {
         this.fragCurrent = null;
       }
       this.fragPrevious = null;
-      if (this.demuxer) {
-        this.demuxer.destroy();
-        this.demuxer = null;
-      }
       this.state = State.STOPPED;
     }
   }, {
@@ -2097,10 +2095,11 @@ var StreamController = function (_EventHandler) {
       var config = this.hls.config;
       var frag = void 0,
           foundFrag = void 0,
-          maxFragLookUpTolerance = config.maxFragLookUpTolerance;
+          maxFragLookUpTolerance = config.maxFragLookUpTolerance,
+          seekFlag = this.media && this.media.seeking || holaSeek;
 
       if (bufferEnd < end) {
-        if (bufferEnd > end - maxFragLookUpTolerance || this.media && this.media.seeking || holaSeek) {
+        if (bufferEnd > end - maxFragLookUpTolerance || seekFlag) {
           maxFragLookUpTolerance = 0;
         }
         foundFrag = _binarySearch2.default.search(fragments, function (candidate) {
@@ -2117,12 +2116,21 @@ var StreamController = function (_EventHandler) {
           // previous frag         matching fragment         next frag
           //  return -1             return 0                 return 1
           //logger.log(`level/sn/start/end/bufEnd:${level}/${candidate.sn}/${candidate.start}/${(candidate.start+candidate.duration)}/${bufferEnd}`);
+          // if we are in seek, the condition will always be false
+          if (candidate.lastGop - maxFragLookUpTolerance < bufferEnd && candidate.lastGop + maxFragLookUpTolerance > bufferEnd) {
+            return 1;
+          }
+          // if we are in seek, the condition will always be false
+          if (candidate.firstGop - maxFragLookUpTolerance < bufferEnd && candidate.firstGop + maxFragLookUpTolerance > bufferEnd) {
+            return 0;
+          }
           if (candidate.start + candidate.duration - candidate.PTSDTSshift - maxFragLookUpTolerance <= bufferEnd) {
             return 1;
-          } // if maxFragLookUpTolerance will have negative value then don't return -1 for first element
-          else if (candidate.start - candidate.PTSDTSshift - maxFragLookUpTolerance > bufferEnd && candidate.start) {
-              return -1;
-            }
+          }
+          // if maxFragLookUpTolerance will have negative value then don't return -1 for first element
+          if (candidate.start - candidate.PTSDTSshift - maxFragLookUpTolerance > bufferEnd && candidate.start) {
+            return -1;
+          }
           return 0;
         });
       } else {
@@ -2494,6 +2502,10 @@ var StreamController = function (_EventHandler) {
       this.levels = data.levels;
       this.startLevelLoaded = false;
       this.startFragRequested = false;
+      if (this.demuxer) {
+        this.demuxer.destroy();
+        this.demuxer = null;
+      }
       if (this.config.autoStartLoad) {
         this.hls.startLoad();
       }
@@ -2733,7 +2745,7 @@ var StreamController = function (_EventHandler) {
         var level = this.levels[this.fragCurrent.level];
         this.stats.tparsed = performance.now();
         this.state = State.PARSED;
-        var drift = _levelHelper2.default.updateFragPTS(level.details, this.fragCurrent.sn, data.startPTS, data.endPTS, data.PTSDTSshift);
+        var drift = _levelHelper2.default.updateFragPTS(level.details, this.fragCurrent.sn, data.startPTS, data.endPTS, data.PTSDTSshift, data.lastGopPTS);
         this.hls.trigger(_events2.default.LEVEL_PTS_UPDATED, { details: level.details, level: this.fragCurrent.level, drift: drift });
         this._checkAppendedParsed();
       }
@@ -4996,7 +5008,9 @@ var TSDemuxer = function () {
     key: 'switchLevel',
     value: function switchLevel() {
       // flush end of previous segment
-      this.remux(null, false, true);
+      if (this._avcTrack.samples.length) {
+        this.remux(null, false, true, false);
+      }
       this.pmtParsed = false;
       this._pmtId = -1;
       this._setEmptyTracks();
@@ -5070,6 +5084,9 @@ var TSDemuxer = function () {
         this.contiguous = true;
       } else {
         // flush any partial content
+        if (this._avcTrack.samples.length) {
+          this.remux(null, false, true, false);
+        }
         this.aacOverFlow = null;
         this._clearAllData();
         this._setEmptyTracks();
@@ -5078,7 +5095,7 @@ var TSDemuxer = function () {
         this.lastContiguous = sn === this.lastSN + 1;
         this.fragStats = { keyFrames: 0, dropped: 0, segment: sn, level: level };
         this.remuxAVCCount = this.remuxAACCount = 0;
-        this.fragStartPts = this.fragStartDts = this.gopStartDts = undefined;
+        this.fragStartPts = this.fragStartDts = this.gopStartDTS = undefined;
         this.fragStartAVCPos = this._avcTrack.samples.length;
         this.fragStartAACPos = this._aacTrack.samples.length;
         this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset * this.remuxer.PES_TIMESCALE;
@@ -5193,10 +5210,10 @@ var TSDemuxer = function () {
         this.fragStartPts = this._avcTrack.samples[this.fragStartAVCPos].pts;
         this.fragStartDts = this._avcTrack.samples[this.fragStartAVCPos].dts;
       }
-      if (this.gopStartDts === undefined && this._avcTrack.samples.length) {
-        this.gopStartPts = this._avcTrack.samples[0].pts;
+      if (this.gopStartDTS === undefined && this._avcTrack.samples.length) {
+        this.gopStartDTS = this._avcTrack.samples[0].dts;
       }
-      this.remux(null, final, final && sn === lastSN);
+      this.remux(null, final, final && sn === lastSN, true);
       if (final) {
         this.observer.trigger(_events2.default.FRAG_STATISTICS, this.fragStats);
       }
@@ -5234,7 +5251,7 @@ var TSDemuxer = function () {
     }
   }, {
     key: 'remux',
-    value: function remux(data, final, flush) {
+    value: function remux(data, final, flush, lastSegment) {
       var _saveAVCSamples = [],
           _saveAACSamples = [],
           _saveID3Samples = [],
@@ -5242,12 +5259,14 @@ var TSDemuxer = function () {
           maxk,
           samples = this._avcTrack.samples,
           startPTS,
-          endPTS;
+          endPTS,
+          gopEndDTS,
+          endDTS;
+      var timescale = this.remuxer.PES_TIMESCALE;
       if (samples.length && final) {
-        var timescale = this.remuxer.PES_TIMESCALE;
         this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - (this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts)) / timescale;
         var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - timescale * this.timeOffset : this.remuxer._initDTS;
-        var startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDts === undefined ? samples[0].dts : this.gopStartDts) - initDTS, this.nextAvcDts), 0);
+        var startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDTS === undefined ? samples[0].dts : this.gopStartDTS) - initDTS, this.nextAvcDts), 0);
         var sample = samples[samples.length - 1];
         var nextAacPTS = this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
         var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
@@ -5261,6 +5280,7 @@ var TSDemuxer = function () {
         }
         startPTS = Math.max(videoStartPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
         endPTS = Math.min(videoEndPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
+        endDTS = Math.max(this.remuxer._PTSNormalize(sample.dts - initDTS, this.nextAvcDts), 0);
         var AVUnsync = void 0;
         if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
           this.fragStats.AVUnsync = AVUnsync;
@@ -5277,17 +5297,17 @@ var TSDemuxer = function () {
         if (maxk > 0) {
           _saveAVCSamples = samples.slice(maxk);
           this._avcTrack.samples = samples.slice(0, maxk);
-          var endDts = this._avcTrack.samples[maxk - 1].dts;
+          gopEndDTS = this._avcTrack.samples[maxk - 1].dts;
           this._recalcTrack(this._avcTrack);
-          this._filterSamples(this._aacTrack, endDts, _saveAACSamples);
-          this._filterSamples(this._id3Track, endDts, _saveID3Samples);
-          this._filterSamples(this._txtTrack, endDts, _saveTextSamples);
+          this._filterSamples(this._aacTrack, gopEndDTS, _saveAACSamples);
+          this._filterSamples(this._id3Track, gopEndDTS, _saveID3Samples);
+          this._filterSamples(this._txtTrack, gopEndDTS, _saveTextSamples);
         }
       }
       if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
         this.remuxAVCCount += this._avcTrack.samples.length;
         this.remuxAACCount += this._aacTrack.samples.length;
-        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous, data, flush, this.fragStats);
+        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), data, flush, this.fragStats);
         this.lastContiguous = undefined;
         this.nextStartPts = this.remuxer.endPTS;
         this._avcTrack.samples = _saveAVCSamples;
@@ -5301,7 +5321,8 @@ var TSDemuxer = function () {
       }
       //notify end of parsing
       if (final) {
-        this.observer.trigger(_events2.default.FRAG_PARSED, { startPTS: startPTS, endPTS: endPTS, PTSDTSshift: this.fragStats.PTSDTSshift });
+        var lastGopPTS = Math.min(this.remuxer.nextAvcDts, this.remuxer.nextAacPts) / timescale;
+        this.observer.trigger(_events2.default.FRAG_PARSED, { startPTS: startPTS, endPTS: endPTS, PTSDTSshift: this.fragStats.PTSDTSshift, lastGopPTS: lastGopPTS });
       }
     }
   }, {
@@ -6371,7 +6392,7 @@ var LevelHelper = function () {
 
       // if at least one fragment contains PTS info, recompute PTS information for all fragments
       if (PTSFrag) {
-        LevelHelper.updateFragPTS(newDetails, PTSFrag.sn, PTSFrag.startPTS, PTSFrag.endPTS, PTSFrag.PTSDTSshift || 0);
+        LevelHelper.updateFragPTS(newDetails, PTSFrag.sn, PTSFrag.startPTS, PTSFrag.endPTS, PTSFrag.PTSDTSshift || 0, PTSFrag.lastGop);
       } else {
         // ensure that delta is within oldfragments range
         // also adjust sliding in case delta is 0 (we could have old=[50-60] and new=old=[50-61])
@@ -6391,7 +6412,7 @@ var LevelHelper = function () {
     }
   }, {
     key: 'updateFragPTS',
-    value: function updateFragPTS(details, sn, startPTS, endPTS, PTSDTSshift) {
+    value: function updateFragPTS(details, sn, startPTS, endPTS, PTSDTSshift, lastGop) {
       var fragIdx, fragments, frag, i;
       // exit if sn out of range
       if (sn < details.startSN || sn > details.endSN) {
@@ -6411,6 +6432,9 @@ var LevelHelper = function () {
       frag.endPTS = endPTS;
       frag.duration = endPTS - startPTS;
       frag.PTSDTSshift = PTSDTSshift || 0;
+      if (lastGop) {
+        frag.lastGop = lastGop;
+      }
 
       // adjust fragment PTS/duration from seqnum-1 to frag 0
       for (i = fragIdx; i > 0; i--) {
@@ -6455,8 +6479,13 @@ var LevelHelper = function () {
           fragTo.start = fragFrom.start - fragTo.duration;
         }
       }
-      if (toIdx > fromIdx && !fragTo.PTSDTSshift) {
-        fragTo.PTSDTSshift = fragFrom.PTSDTSshift || 0;
+      if (toIdx > fromIdx) {
+        if (!fragTo.PTSDTSshift) {
+          fragTo.PTSDTSshift = fragFrom.PTSDTSshift || 0;
+        }
+        if (fragFrom.lastGop) {
+          fragTo.firstGop = fragFrom.lastGop;
+        }
       }
     }
   }]);
@@ -6552,7 +6581,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-21';
+      return '0.6.1-22';
     }
   }, {
     key: 'Events',
@@ -8113,8 +8142,6 @@ var MP4Remuxer = function () {
       // dummy
       data = null;
 
-      contiguous = flush || contiguous;
-
       // generate Init Segment if needed
       if (!this.ISGenerated) {
         this.generateIS(audioTrack, videoTrack, timeOffset);
@@ -8486,7 +8513,7 @@ var MP4Remuxer = function () {
             var missing = Math.round(delta / pesFrameDuration);
             _logger.logger.log('Injecting ' + missing + ' frame' + (missing > 1 ? 's' : '') + ' of missing audio due to ' + Math.round(delta / 90) + ' ms gap.');
             for (var j = 0; j < missing; j++) {
-              newStamp = sample.pts - (missing - j) * pesFrameDuration;
+              newStamp = nextPtsNorm + this._initDTS;
               newStamp = Math.max(newStamp, this._initDTS);
               fillFrame = _aac2.default.getSilentFrame(track.channelCount);
               if (!fillFrame) {
@@ -8495,12 +8522,13 @@ var MP4Remuxer = function () {
               }
               samples0.splice(i, 0, { unit: fillFrame, pts: newStamp, dts: newStamp });
               track.len += fillFrame.length;
+              nextPtsNorm += pesFrameDuration;
               i += 1;
             }
 
             // Adjust sample to next expected pts
-            sample.pts = samples0[i - 1].pts + pesFrameDuration;
-            nextPtsNorm = this._PTSNormalize(sample.pts + pesFrameDuration - this._initDTS, nextAacPts);
+            sample.pts = nextPtsNorm + this._initDTS;
+            nextPtsNorm += pesFrameDuration;
             i += 1;
           }
           // Otherwise, we're within half a frame duration, so just adjust pts

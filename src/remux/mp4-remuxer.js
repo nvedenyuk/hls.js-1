@@ -40,8 +40,6 @@ class MP4Remuxer {
     // dummy
     data = null;
 
-    contiguous = flush || contiguous;
-
     // generate Init Segment if needed
     if (!this.ISGenerated) {
       this.generateIS(audioTrack,videoTrack,timeOffset);
@@ -395,7 +393,7 @@ class MP4Remuxer {
         var missing = Math.round(delta / pesFrameDuration);
         logger.log(`Injecting ${missing} frame${missing > 1 ? 's' : ''} of missing audio due to ${Math.round(delta / 90)} ms gap.`);
         for (var j = 0; j < missing; j++) {
-          newStamp = sample.pts - (missing - j) * pesFrameDuration;
+          newStamp = nextPtsNorm + this._initDTS;
           newStamp = Math.max(newStamp, this._initDTS);
           fillFrame = AAC.getSilentFrame(track.channelCount);
           if (!fillFrame) {
@@ -404,12 +402,13 @@ class MP4Remuxer {
           }
           samples0.splice(i, 0, {unit: fillFrame, pts: newStamp, dts: newStamp});
           track.len += fillFrame.length;
+          nextPtsNorm += pesFrameDuration;
           i += 1;
         }
 
         // Adjust sample to next expected pts
-        sample.pts = samples0[i - 1].pts + pesFrameDuration;
-        nextPtsNorm = this._PTSNormalize(sample.pts + pesFrameDuration - this._initDTS, nextAacPts);
+        sample.pts = nextPtsNorm + this._initDTS;
+        nextPtsNorm += pesFrameDuration;
         i += 1;
       }
       // Otherwise, we're within half a frame duration, so just adjust pts

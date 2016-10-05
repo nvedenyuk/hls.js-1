@@ -67,7 +67,9 @@ class StreamController extends EventHandler {
     if (this.levels) {
       var media = this.media, lastCurrentTime = this.lastCurrentTime;
       this.stopLoad();
-      this.demuxer = new Demuxer(this.hls);
+      if (!this.demuxer) {
+        this.demuxer = new Demuxer(this.hls);
+      }
       if (!this.timer) {
         this.timer = setInterval(this.ontick, 100);
       }
@@ -101,10 +103,6 @@ class StreamController extends EventHandler {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
-    if (this.demuxer) {
-      this.demuxer.destroy();
-      this.demuxer = null;
-    }
     this.state = State.STOPPED;
   }
 
@@ -334,10 +332,11 @@ class StreamController extends EventHandler {
     const config = this.hls.config;
     let frag,
         foundFrag,
-        maxFragLookUpTolerance = config.maxFragLookUpTolerance;
+        maxFragLookUpTolerance = config.maxFragLookUpTolerance,
+        seekFlag = this.media && this.media.seeking || holaSeek;
 
     if (bufferEnd < end) {
-      if (bufferEnd > end - maxFragLookUpTolerance || this.media && this.media.seeking || holaSeek) {
+      if (bufferEnd > end - maxFragLookUpTolerance || seekFlag) {
         maxFragLookUpTolerance = 0;
       }
       foundFrag = BinarySearch.search(fragments, (candidate) => {
@@ -354,10 +353,19 @@ class StreamController extends EventHandler {
             // previous frag         matching fragment         next frag
             //  return -1             return 0                 return 1
         //logger.log(`level/sn/start/end/bufEnd:${level}/${candidate.sn}/${candidate.start}/${(candidate.start+candidate.duration)}/${bufferEnd}`);
-        if ((candidate.start + candidate.duration - candidate.PTSDTSshift - maxFragLookUpTolerance) <= bufferEnd) {
+        // if we are in seek, the condition will always be false
+        if (candidate.lastGop - maxFragLookUpTolerance < bufferEnd && candidate.lastGop + maxFragLookUpTolerance > bufferEnd) {
           return 1;
-        }// if maxFragLookUpTolerance will have negative value then don't return -1 for first element
-        else if (candidate.start - candidate.PTSDTSshift - maxFragLookUpTolerance > bufferEnd && candidate.start) {
+        }
+        // if we are in seek, the condition will always be false
+        if (candidate.firstGop - maxFragLookUpTolerance < bufferEnd && candidate.firstGop + maxFragLookUpTolerance > bufferEnd) {
+          return 0;
+        }
+        if (candidate.start + candidate.duration - candidate.PTSDTSshift - maxFragLookUpTolerance <= bufferEnd) {
+          return 1;
+        }
+        // if maxFragLookUpTolerance will have negative value then don't return -1 for first element
+        if (candidate.start - candidate.PTSDTSshift - maxFragLookUpTolerance > bufferEnd && candidate.start) {
           return -1;
         }
         return 0;
@@ -740,6 +748,10 @@ class StreamController extends EventHandler {
     this.levels = data.levels;
     this.startLevelLoaded = false;
     this.startFragRequested = false;
+    if (this.demuxer) {
+      this.demuxer.destroy();
+      this.demuxer = null;
+    }
     if (this.config.autoStartLoad) {
       this.hls.startLoad();
     }
@@ -974,7 +986,7 @@ class StreamController extends EventHandler {
       var level = this.levels[this.fragCurrent.level];
       this.stats.tparsed = performance.now();
       this.state = State.PARSED;
-      var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS,data.PTSDTSshift);
+      var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS,data.PTSDTSshift,data.lastGopPTS);
       this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
       this._checkAppendedParsed();
     }
