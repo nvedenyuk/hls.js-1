@@ -449,6 +449,10 @@ class StreamController extends EventHandler {
       const previousState = this.state;
       this._state = nextState;
       logger.log(`engine state transition from ${previousState} to ${nextState}`);
+      if (previousState === 'PARSING' && nextState === 'IDLE') {
+        // XXX pavelki: debug logging of invalid transition
+        logger.log(`incorrect transition. Stack: ${new Error().stack}`);
+      }
       this.hls.trigger(Event.STREAM_STATE_TRANSITION, {previousState, nextState});
     }
   }

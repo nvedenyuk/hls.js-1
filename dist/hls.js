@@ -2997,6 +2997,10 @@ var StreamController = function (_EventHandler) {
         var previousState = this.state;
         this._state = nextState;
         _logger.logger.log('engine state transition from ' + previousState + ' to ' + nextState);
+        if (previousState === 'PARSING' && nextState === 'IDLE') {
+          // XXX pavelki: debug logging of invalid transition
+          _logger.logger.log('incorrect transition. Stack: ' + new Error().stack);
+        }
         this.hls.trigger(_events2.default.STREAM_STATE_TRANSITION, { previousState: previousState, nextState: nextState });
       }
     },
