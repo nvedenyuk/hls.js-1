@@ -299,10 +299,8 @@
       if ((samples.length+this.remuxAVCCount)>this.fragStartAVCPos+1 && this.fragStartDts !== undefined) {
         videoEndPTS += (sample.dts-this.fragStartDts)/(samples.length+this.remuxAVCCount-this.fragStartAVCPos-1)/timescale;
       }
-      let audioStartPTS = nextAacPTS+(this.fragStartAACPos-this.remuxAACCount)*expectedSampleDuration;
-      let audioEndPTS = nextAacPTS+expectedSampleDuration*this._aacTrack.samples.length;
-      startPTS = videoStartPTS-this.fragStats.PTSDTSshift>audioStartPTS ? videoStartPTS : audioStartPTS+this.fragStats.PTSDTSshift;
-      endPTS = videoEndPTS-this.fragStats.PTSDTSshift<audioEndPTS ? videoEndPTS : audioEndPTS+this.fragStats.PTSDTSshift;
+      startPTS = Math.max(videoStartPTS, nextAacPTS+(this.fragStartAACPos-this.remuxAACCount)*expectedSampleDuration);
+      endPTS = Math.min(videoEndPTS, nextAacPTS+expectedSampleDuration*this._aacTrack.samples.length);
       endDTS = Math.max(this.remuxer._PTSNormalize(sample.dts - initDTS,this.nextAvcDts),0);
       let AVUnsync;
       if ((AVUnsync = endPTS-startPTS+videoStartPTS-videoEndPTS)>0.2) {

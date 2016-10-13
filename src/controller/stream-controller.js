@@ -335,7 +335,7 @@ class StreamController extends EventHandler {
         maxFragLookUpTolerance = config.maxFragLookUpTolerance,
         seekFlag = this.media && this.media.seeking || holaSeek;
 
-    if (bufferEnd < end) {
+    if (bufferEnd < end-(fragments[fragLen-1].PTSDTSshift||0)-0.05) {
       if (bufferEnd > end - maxFragLookUpTolerance || seekFlag) {
         maxFragLookUpTolerance = 0;
       }
@@ -449,10 +449,6 @@ class StreamController extends EventHandler {
       const previousState = this.state;
       this._state = nextState;
       logger.log(`engine state transition from ${previousState} to ${nextState}`);
-      if (previousState === 'PARSING' && nextState === 'IDLE') {
-        // XXX pavelki: debug logging of invalid transition
-        logger.log(`incorrect transition. Stack: ${new Error().stack}`);
-      }
       this.hls.trigger(Event.STREAM_STATE_TRANSITION, {previousState, nextState});
     }
   }

@@ -2098,7 +2098,7 @@ var StreamController = function (_EventHandler) {
           maxFragLookUpTolerance = config.maxFragLookUpTolerance,
           seekFlag = this.media && this.media.seeking || holaSeek;
 
-      if (bufferEnd < end) {
+      if (bufferEnd < end - (fragments[fragLen - 1].PTSDTSshift || 0) - 0.05) {
         if (bufferEnd > end - maxFragLookUpTolerance || seekFlag) {
           maxFragLookUpTolerance = 0;
         }
@@ -2997,10 +2997,6 @@ var StreamController = function (_EventHandler) {
         var previousState = this.state;
         this._state = nextState;
         _logger.logger.log('engine state transition from ' + previousState + ' to ' + nextState);
-        if (previousState === 'PARSING' && nextState === 'IDLE') {
-          // XXX pavelki: debug logging of invalid transition
-          _logger.logger.log('incorrect transition. Stack: ' + new Error().stack);
-        }
         this.hls.trigger(_events2.default.STREAM_STATE_TRANSITION, { previousState: previousState, nextState: nextState });
       }
     },
@@ -5282,10 +5278,8 @@ var TSDemuxer = function () {
         if (samples.length + this.remuxAVCCount > this.fragStartAVCPos + 1 && this.fragStartDts !== undefined) {
           videoEndPTS += (sample.dts - this.fragStartDts) / (samples.length + this.remuxAVCCount - this.fragStartAVCPos - 1) / timescale;
         }
-        var audioStartPTS = nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration;
-        var audioEndPTS = nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length;
-        startPTS = videoStartPTS - this.fragStats.PTSDTSshift > audioStartPTS ? videoStartPTS : audioStartPTS + this.fragStats.PTSDTSshift;
-        endPTS = videoEndPTS - this.fragStats.PTSDTSshift < audioEndPTS ? videoEndPTS : audioEndPTS + this.fragStats.PTSDTSshift;
+        startPTS = Math.max(videoStartPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
+        endPTS = Math.min(videoEndPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
         endDTS = Math.max(this.remuxer._PTSNormalize(sample.dts - initDTS, this.nextAvcDts), 0);
         var AVUnsync = void 0;
         if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
@@ -6590,7 +6584,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-24';
+      return '0.6.1-25';
     }
   }, {
     key: 'Events',
