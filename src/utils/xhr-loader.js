@@ -58,7 +58,11 @@ class XhrLoader {
     xhr.onloadend = this.loadend.bind(this);
     xhr.onprogress = this.loadprogress.bind(this);
 
-    xhr.open('GET', this.url, true);
+    var url = this.url;
+    if (location.protocol==='https:' && /^http:\/\//.test(url)) {
+      url = url.replace(/^http:\/\//, 'https://');
+    }
+    xhr.open('GET', url, true);
     if (this.byteRange) {
       xhr.setRequestHeader('Range', 'bytes=' + this.byteRange);
     }
@@ -66,7 +70,7 @@ class XhrLoader {
     this.stats.tfirst = null;
     this.stats.loaded = 0;
     if (this.xhrSetup) {
-      this.xhrSetup(xhr, this.url);
+      this.xhrSetup(xhr, url);
     }
     this.timeoutHandle = window.setTimeout(this.loadtimeout.bind(this), this.timeout);
     xhr.send();
