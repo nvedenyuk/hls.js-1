@@ -2382,6 +2382,10 @@ var StreamController = function (_EventHandler) {
       media.addEventListener('seeking', this.onvseeking);
       media.addEventListener('seeked', this.onvseeked);
       media.addEventListener('ended', this.onvended);
+      if (this.demuxer) {
+        this.demuxer.destroy();
+        this.demuxer = new _demuxer2.default(this.hls);
+      }
       if (this.levels && this.config.autoStartLoad) {
         this.hls.startLoad();
       }
@@ -2503,7 +2507,7 @@ var StreamController = function (_EventHandler) {
       this.startFragRequested = false;
       if (this.demuxer) {
         this.demuxer.destroy();
-        this.demuxer = null;
+        this.demuxer = new _demuxer2.default(this.hls);
       }
       if (this.config.autoStartLoad) {
         this.hls.startLoad();
@@ -6581,7 +6585,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-26';
+      return '0.6.1-27';
     }
   }, {
     key: 'Events',

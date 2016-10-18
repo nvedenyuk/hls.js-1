@@ -636,6 +636,10 @@ class StreamController extends EventHandler {
     media.addEventListener('seeking', this.onvseeking);
     media.addEventListener('seeked', this.onvseeked);
     media.addEventListener('ended', this.onvended);
+    if (this.demuxer) {
+      this.demuxer.destroy();
+      this.demuxer = new Demuxer(this.hls);
+    }
     if(this.levels && this.config.autoStartLoad) {
       this.hls.startLoad();
     }
@@ -750,7 +754,7 @@ class StreamController extends EventHandler {
     this.startFragRequested = false;
     if (this.demuxer) {
       this.demuxer.destroy();
-      this.demuxer = null;
+      this.demuxer = new Demuxer(this.hls);
     }
     if (this.config.autoStartLoad) {
       this.hls.startLoad();
