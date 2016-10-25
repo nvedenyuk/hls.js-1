@@ -552,17 +552,14 @@ class MP4Remuxer {
     let pesTimeScale = this.PES_TIMESCALE,
         mp4timeScale = track.timescale ? track.timescale : track.audiosamplerate,
         pes2mp4ScaleFactor = pesTimeScale/mp4timeScale,
-
-        // sync with video's timestamp
-        startDTS = videoData.startDTS * pesTimeScale + this._initDTS,
-        endDTS = videoData.endDTS * pesTimeScale + this._initDTS,
+        startDTS = (contiguous ? this.nextAacPts : timeOffset*pesTimeScale)+this._initDTS,
 
         // one sample's duration value
         sampleDuration = 1024,
         frameDuration = pes2mp4ScaleFactor * sampleDuration,
 
         // samples count of this segment's duration
-        nbSamples = Math.ceil((endDTS - startDTS) / frameDuration),
+        nbSamples = Math.ceil((videoData.endDTS-videoData.startDTS) * pesTimeScale / frameDuration),
 
         // silent frame
         silentFrame = AAC.getSilentFrame(track.channelCount);

@@ -5261,16 +5261,13 @@ var TSDemuxer = function () {
           samples = this._avcTrack.samples,
           startPTS,
           endPTS,
-          gopEndDTS,
-          endDTS;
+          gopEndDTS;
       var timescale = this.remuxer.PES_TIMESCALE;
       if (samples.length && final) {
         this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - (this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts)) / timescale;
         var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - timescale * this.timeOffset : this.remuxer._initDTS;
         var startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDTS === undefined ? samples[0].dts : this.gopStartDTS) - initDTS, this.nextAvcDts), 0);
         var sample = samples[samples.length - 1];
-        var nextAacPTS = this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
-        var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
         var videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / timescale;
         var videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / timescale;
         if (Math.abs(startDTS - this.nextAvcDts) > 90) {
@@ -5279,12 +5276,17 @@ var TSDemuxer = function () {
         if (samples.length + this.remuxAVCCount > this.fragStartAVCPos + 1 && this.fragStartDts !== undefined) {
           videoEndPTS += (sample.dts - this.fragStartDts) / (samples.length + this.remuxAVCCount - this.fragStartAVCPos - 1) / timescale;
         }
-        startPTS = Math.max(videoStartPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
-        endPTS = Math.min(videoEndPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
-        endDTS = Math.max(this.remuxer._PTSNormalize(sample.dts - initDTS, this.nextAvcDts), 0);
-        var AVUnsync = void 0;
-        if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
-          this.fragStats.AVUnsync = AVUnsync;
+        startPTS = videoStartPTS;
+        endPTS = videoEndPTS;
+        if (this._aacTrack.audiosamplerate) {
+          var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
+          var nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
+          startPTS = Math.max(startPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
+          endPTS = Math.min(endPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
+          var AVUnsync = void 0;
+          if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
+            this.fragStats.AVUnsync = AVUnsync;
+          }
         }
         // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
       }
@@ -6585,7 +6587,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-27';
+      return '0.6.1-28';
     }
   }, {
     key: 'Events',
@@ -8672,11 +8674,7 @@ var MP4Remuxer = function () {
       var pesTimeScale = this.PES_TIMESCALE,
           mp4timeScale = track.timescale ? track.timescale : track.audiosamplerate,
           pes2mp4ScaleFactor = pesTimeScale / mp4timeScale,
-
-
-      // sync with video's timestamp
-      startDTS = videoData.startDTS * pesTimeScale + this._initDTS,
-          endDTS = videoData.endDTS * pesTimeScale + this._initDTS,
+          startDTS = (contiguous ? this.nextAacPts : timeOffset * pesTimeScale) + this._initDTS,
 
 
       // one sample's duration value
@@ -8685,7 +8683,7 @@ var MP4Remuxer = function () {
 
 
       // samples count of this segment's duration
-      nbSamples = Math.ceil((endDTS - startDTS) / frameDuration),
+      nbSamples = Math.ceil((videoData.endDTS - videoData.startDTS) * pesTimeScale / frameDuration),
 
 
       // silent frame
