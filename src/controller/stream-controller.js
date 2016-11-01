@@ -856,7 +856,7 @@ class StreamController extends EventHandler {
       }
       let demuxer = this.demuxer;
       if (demuxer) {
-        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, this.levels[level].details.endSN);
+        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN);
       }
     }
     this.fragLoadError = 0;

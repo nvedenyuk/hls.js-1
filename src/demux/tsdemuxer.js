@@ -88,13 +88,14 @@
   }
 
   // feed incoming data to the front of the parsing pipeline
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final, lastSN){
-    var avcData = this._avcData, aacData = this._aacData,
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN){
+    var avcData = this._avcData, aacData = this._aacData, pes,
         id3Data = this._id3Data, start, len = data.length, stt, pid, atf,
-        offset, codecsOnly = this.remuxer.passthrough;
+        offset, codecsOnly = this.remuxer.passthrough, unknownPIDs = false;
     this.audioCodec = audioCodec;
     this.videoCodec = videoCodec;
     this.timeOffset = timeOffset;
+    this.accurate = accurate;
     this._duration = duration;
     this.contiguous = false;
     if (cc !== this.lastCC) {
@@ -128,8 +129,7 @@
       this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset*this.remuxer.PES_TIMESCALE;
     }
     this.currentSN = sn;
-    var pmtParsed = this.pmtParsed,
-        avcId = this._avcTrack.id,
+    var avcId = this._avcTrack.id,
         aacId = this._aacTrack.id,
         id3Id = this._id3Track.id;
 
@@ -152,11 +152,12 @@
         } else {
           offset = start + 4;
         }
-        if (pmtParsed) {
-          if (pid === avcId) {
+
+        switch (pid) {
+        case avcId:
             if (stt) {
-              if (avcData.size) {
-                this._parseAVCPES(this._parsePES(avcData));
+              if ((pes = this._parsePES(avcData))) {
+                this._parseAVCPES(pes);
                 if (codecsOnly) {
                   // if we have video codec info AND
                   // if audio PID is undefined OR if we have audio codec info,
@@ -171,10 +172,11 @@
             }
             avcData.data.push(data.subarray(offset, start + 188));
             avcData.size += start + 188 - offset;
-          } else if (pid === aacId) {
+            break;
+        case aacId:
             if (stt) {
-              if (aacData.size) {
-                this._parseAACPES(this._parsePES(aacData));
+              if ((pes = this._parsePES(aacData))) {
+                this._parseAACPES(pes);
                 if (codecsOnly) {
                   // here we now that we have audio codec info
                   // if video PID is undefined OR if we have video codec info,
@@ -189,29 +191,45 @@
             }
             aacData.data.push(data.subarray(offset, start + 188));
             aacData.size += start + 188 - offset;
-          } else if (pid === id3Id) {
+            break;
+        case id3Id:
             if (stt) {
-              if (id3Data.size) {
-                this._parseID3PES(this._parsePES(id3Data));
+              if ((pes = this._parsePES(id3Data))) {
+                this._parseID3PES(pes);
               }
               id3Data = this._clearID3Data();
             }
             id3Data.data.push(data.subarray(offset, start + 188));
             id3Data.size += start + 188 - offset;
-          }
-        } else {
-          if (stt) {
-            offset += data[offset] + 1;
-          }
-          if (pid === 0) {
+            break;
+        case 0:
+            if (stt) {
+              offset += data[offset] + 1;
+            }
             this._parsePAT(data, offset);
-          } else if (pid === this._pmtId) {
+            break;
+        case this._pmtId:
+            if (stt) {
+              offset += data[offset] + 1;
+            }
             this._parsePMT(data, offset);
-            pmtParsed = this.pmtParsed = true;
             avcId = this._avcTrack.id;
             aacId = this._aacTrack.id;
             id3Id = this._id3Track.id;
-          }
+            if (unknownPIDs && !this.pmtParsed) {
+              logger.log('reparse from beginning');
+              unknownPIDs = false;
+              // we set it to -188, the += 188 in the for loop will reset start to 0
+              start = -188;
+            }
+            this.pmtParsed = true;
+            break;
+        case 17:
+        case 0x1fff:
+            break;
+        default:
+            unknownPIDs = true;
+            break;
         }
       } else {
         this.observer.trigger(Event.ERROR, {type : ErrorTypes.MEDIA_ERROR, details: ErrorDetails.FRAG_PARSING_ERROR, fatal: false, reason: 'TS packet did not start with 0x47'});
@@ -332,7 +350,7 @@
       this.remuxAVCCount += this._avcTrack.samples.length;
       this.remuxAACCount += this._aacTrack.samples.length;
       this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset,
-        flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), data, flush, this.fragStats);
+        flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
       this.lastContiguous = undefined;
       this.nextStartPts = this.remuxer.endPTS;
       this._avcTrack.samples = _saveAVCSamples;
@@ -378,14 +396,16 @@
         // ISO/IEC 13818-7 ADTS AAC (MPEG-2 lower bit-rate audio)
         case 0x0f:
           //logger.log('AAC PID:'  + pid);
-          if  (this._aacTrack.id === -1) {
+          if (this._aacTrack.id === -1) {
             this._aacTrack.id = pid;
           }
           break;
         // Packetized metadata (ID3)
         case 0x15:
           //logger.log('ID3 PID:'  + pid);
-          this._id3Track.id = pid;
+          if (this._id3Track.id === -1) {
+            this._id3Track.id = pid;
+          }
           break;
         // ITU-T Rec. H.264 and ISO/IEC 14496-10 (lower bit-rate video)
         case 0x1b:
@@ -393,6 +413,10 @@
           if  (this._avcTrack.id === -1) {
             this._avcTrack.id = pid;
           }
+          break;
+        case 0x24:
+          this.fragStats.HEVC = (this.fragStats.HEVC|0)+1;
+          logger.warn('HEVC stream type found, not supported for now');
           break;
         default:
           this.fragStats.unknownStream = (this.fragStats.unknownStream|0)+1;
@@ -407,6 +431,11 @@
 
   _parsePES(stream) {
     var i = 0, frag, pesFlags, pesPrefix, pesLen, pesHdrLen, pesData, pesPts, pesDts, payloadStartOffset, data = stream.data;
+    // safety check
+    if (!stream || stream.size === 0) {
+      return null;
+    }
+
     // we might need up to 19 bytes to read PES header
     // if first chunk of data is less than 19 bytes, let's merge it with following ones until we get 19 bytes
     // usually only one merge is needed (and this is rare ...)
@@ -422,6 +451,9 @@
     pesPrefix = (frag[0] << 16) + (frag[1] << 8) + frag[2];
     if (pesPrefix === 1) {
       pesLen = (frag[4] << 8) + frag[5];
+      if (pesLen && pesLen !== stream.size - 6) {
+        return null;
+      }
       pesFlags = frag[7];
       if (pesFlags & 0xC0) {
         /* PES header described here : http://dvd.sourceforge.net/dvdinfo/pes-hdr.html
@@ -475,6 +507,10 @@
         }
         pesData.set(frag, i);
         i+=len;
+      }
+      if (pesLen) {
+        // payload size : remove PES header + PES extension
+        pesLen -= pesHdrLen+3;
       }
       return {data: pesData, pts: pesPts, dts: pesDts, len: pesLen};
     } else {

@@ -46,16 +46,16 @@ class Demuxer {
     }
   }
 
-  pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final, lastSN) {
+  pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN) {
     if (this.w) {
       // post fragment payload as transferable objects (no copy)
-      this.w.postMessage({cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn : sn, duration: duration, first: first, final: final, lastSN: lastSN}, [data]);
+      this.w.postMessage({cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn : sn, duration: duration, accurate: accurate, first: first, final: final, lastSN: lastSN}, [data]);
     } else {
-      this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, first, final, lastSN);
+      this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN);
     }
   }
 
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata, lastSN) {
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata, accurate, lastSN) {
     if (data.first) {
       this.trail = new Uint8Array(0);
       this.trail.first = true;
@@ -104,10 +104,10 @@ class Demuxer {
 
       var localthis = this;
       this.decrypter.decrypt(data, decryptdata.key, data.first&&decryptdata.iv, function(decryptedData){
-        localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final, lastSN);
+        localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, !!data.first, !!data.final, lastSN);
       });
     } else {
-      this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, !!data.first, !!data.final, lastSN);
+      this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, !!data.first, !!data.final, lastSN);
     }
   }
 
