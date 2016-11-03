@@ -12,3 +12,19 @@ if (!ArrayBuffer.prototype.slice) {
     return result;
   };
 }
+if (!Object.assign) {
+  Object.assign = function (obj) {
+    for (var i=1; i<arguments.length; i++) {
+      var source = arguments[i];
+      if (!source) {
+        continue;
+      }
+      for (var prop in source) {
+        if (source.hasOwnProperty(prop)) {
+          obj[prop] = source[prop];
+        }
+      }
+    }
+    return obj;
+  };
+}
