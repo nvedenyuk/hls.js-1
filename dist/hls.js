@@ -2541,11 +2541,11 @@ var StreamController = function (_EventHandler) {
         }
       } else {
         newDetails.PTSKnown = false;
+        if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
+          _levelHelper2.default.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+        }
       }
       // override level info
-      if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
-        _levelHelper2.default.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
-      }
       this.levelLastLoaded = newLevelId;
       curLevel.details = newDetails;
       this.hls.trigger(_events2.default.LEVEL_UPDATED, { details: newDetails, level: newLevelId });
@@ -2969,7 +2969,7 @@ var StreamController = function (_EventHandler) {
   }, {
     key: 'onLevelPtsUpdated',
     value: function onLevelPtsUpdated(lu) {
-      if (!this.levels) {
+      if (!this.levels || this.levels[lu.level].details.live) {
         return;
       }
       for (var level = 0; level < this.levels.length; level++) {

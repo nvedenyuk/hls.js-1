@@ -787,11 +787,11 @@ class StreamController extends EventHandler {
       }
     } else {
       newDetails.PTSKnown = false;
+      if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
+        LevelHelper.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+      }
     }
     // override level info
-    if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
-      LevelHelper.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
-    }
     this.levelLastLoaded = newLevelId;
     curLevel.details = newDetails;
     this.hls.trigger(Event.LEVEL_UPDATED, { details: newDetails, level: newLevelId });
@@ -1203,7 +1203,7 @@ _checkBuffer() {
   }
 
   onLevelPtsUpdated(lu) {
-    if (!this.levels) {
+    if (!this.levels || this.levels[lu.level].details.live) {
       return;
     }
     for (var level=0; level<this.levels.length; level++) {
