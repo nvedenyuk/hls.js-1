@@ -15,6 +15,7 @@
 // import Hex from '../utils/hex';
  import {logger} from '../utils/logger';
  import {ErrorTypes, ErrorDetails} from '../errors';
+ import '../utils/polyfill';
 
  class TSDemuxer {
 
