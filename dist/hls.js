@@ -6640,7 +6640,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-34';
+      return '0.6.1-35';
     }
   }, {
     key: 'Events',
