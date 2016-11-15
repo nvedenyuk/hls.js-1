@@ -530,6 +530,7 @@
         expGolombDecoder,
         avcSample,
         push,
+        hlsConfig = this.config,
         i;
     // no NALu found
     if (units.length === 0 && samples.length > 0) {
@@ -590,8 +591,13 @@
             payloadSize = 0;
             do {
                b = expGolombDecoder.readUByte();
-               payloadType += b;
+               payloadSize += b;
             } while (b === 0xFF);
+
+            // if SEI recovery_point has been found mark as keyframe
+            if (!hlsConfig.disableSEIkeyframes) {
+                key = key || payloadType === 6;
+            }
 
             // TODO: there can be more than one payload in an SEI packet...
             // TODO: need to read type and size in a while loop to get them all
