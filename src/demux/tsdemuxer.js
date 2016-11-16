@@ -31,7 +31,7 @@
 
   _setEmptyTracks() {
     this._avcTrack = Object.assign({}, this._avcTrack, {container : 'video/mp2t', type: 'video', samples : [], len : 0, nbNalu : 0, sps: undefined, pps: undefined});
-    this._aacTrack = Object.assign({}, this._aacTrack, {container : 'video/mp2t', type: 'audio', samples : [], len : 0, audiosamplerate: undefined});
+    this._aacTrack = Object.assign({}, this._aacTrack, {container : 'video/mp2t', type: 'audio', samples : [], len : 0});
     this._id3Track = Object.assign({}, this._id3Track, {type: 'id3', samples : [], len : 0});
     this._txtTrack = Object.assign({}, this._txtTrack, {type: 'text', samples: [], len: 0});
     this._avcTrack.sequenceNumber = this._avcTrack.sequenceNumber|0;
@@ -896,8 +896,8 @@
         return;
       }
     }
-    if (!track.audiosamplerate) {
-      config = ADTS.getAudioConfig(this.observer,data, offset, audioCodec);
+    config = ADTS.getAudioConfig(this.observer,data, offset, audioCodec);
+    if (track.audiosamplerate !== config.audiosamplerate || track.codec !== config.codec) {
       track.config = config.config;
       track.audiosamplerate = config.samplerate;
       track.channelCount = config.channelCount;

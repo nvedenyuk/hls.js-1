@@ -1143,8 +1143,7 @@ _checkBuffer() {
               var nextBufferStart = bufferInfo.nextStart, delta = nextBufferStart-currentTime;
               if(nextBufferStart &&
                  (delta < this.config.maxSeekHole) &&
-                 (delta > 0)  &&
-                 !media.seeking) {
+                 (delta > 0)) {
                 // next buffer is close ! adjust currentTime to nextBufferStart
                 // this will ensure effective video decoding
                 logger.log(`adjust currentTime from ${media.currentTime} to next buffered @ ${nextBufferStart} + nudge ${this.seekHoleNudgeDuration}`);
