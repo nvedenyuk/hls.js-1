@@ -2751,8 +2751,10 @@ var StreamController = function (_EventHandler) {
         var level = this.levels[this.fragCurrent.level];
         this.stats.tparsed = performance.now();
         this.state = State.PARSED;
-        var drift = _levelHelper2.default.updateFragPTS(level.details, this.fragCurrent.sn, data.startPTS, data.endPTS, data.PTSDTSshift, data.lastGopPTS);
-        this.hls.trigger(_events2.default.LEVEL_PTS_UPDATED, { details: level.details, level: this.fragCurrent.level, drift: drift });
+        if (data.startPTS !== undefined && data.endPTS !== undefined) {
+          var drift = _levelHelper2.default.updateFragPTS(level.details, this.fragCurrent.sn, data.startPTS, data.endPTS, data.PTSDTSshift, data.lastGopPTS);
+          this.hls.trigger(_events2.default.LEVEL_PTS_UPDATED, { details: level.details, level: this.fragCurrent.level, drift: drift });
+        }
         this._checkAppendedParsed();
       }
     }
@@ -6640,7 +6642,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-36';
+      return '0.6.1-37';
     }
   }, {
     key: 'Events',

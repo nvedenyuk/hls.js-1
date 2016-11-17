@@ -992,8 +992,10 @@ class StreamController extends EventHandler {
       var level = this.levels[this.fragCurrent.level];
       this.stats.tparsed = performance.now();
       this.state = State.PARSED;
-      var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS,data.PTSDTSshift,data.lastGopPTS);
-      this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
+      if (data.startPTS !== undefined && data.endPTS !== undefined) {
+        var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS,data.PTSDTSshift,data.lastGopPTS);
+        this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
+      }
       this._checkAppendedParsed();
     }
   }
