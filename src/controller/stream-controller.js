@@ -379,7 +379,8 @@ class StreamController extends EventHandler {
     if (foundFrag) {
       frag = foundFrag;
       start = foundFrag.start;
-      //logger.log('find SN matching with pos:' +  bufferEnd + ':' + frag.sn);
+      logger.log('find SN matching with pos:' +  bufferEnd + ':' + frag.sn);
+      logger.log('fragPrevious.sn:'+(fragPrevious ? fragPrevious.sn : 'NONE'));
       if (fragPrevious && frag.sn === fragPrevious.sn) {
         if (frag.sn < levelDetails.endSN) {
           frag = fragments[frag.sn + 1 - levelDetails.startSN];
