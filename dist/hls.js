@@ -2209,6 +2209,7 @@ var StreamController = function (_EventHandler) {
         }
         frag.loadIdx = this.fragLoadIdx;
         this.fragCurrent = frag;
+        this.fragCurrent.loaded = false;
         this.startFragRequested = true;
         this.fragTimeOffset = frag.start;
         hls.trigger(_events2.default.FRAG_LOADING, { frag: frag });
@@ -2430,12 +2431,12 @@ var StreamController = function (_EventHandler) {
     key: 'onMediaSeeking',
     value: function onMediaSeeking() {
       _logger.logger.log('media seeking to ' + this.media.currentTime);
+      var fragCurrent = this.fragCurrent;
       if (this.state === State.FRAG_LOADING) {
         // check if currently loaded fragment is inside buffer.
         //if outside, cancel fragment loading, otherwise do nothing
         if (_bufferHelper2.default.bufferInfo(this.media, this.media.currentTime, this.config.maxBufferHole).len === 0) {
           _logger.logger.log('seeking outside of buffer while fragment load in progress, cancel fragment load');
-          var fragCurrent = this.fragCurrent;
           if (fragCurrent) {
             if (fragCurrent.loader) {
               fragCurrent.loader.abort();
@@ -2449,7 +2450,11 @@ var StreamController = function (_EventHandler) {
       } else if (this.state === State.ENDED) {
         // switch to IDLE state to check for potential new fragment
         this.state = State.IDLE;
+      } else if (this.state === State.PARSING && fragCurrent && !fragCurrent.loaded) {
+        _logger.logger.log('mediaController: no final chunk, switch back to IDLE state');
+        this.state = State.IDLE;
       }
+
       if (this.media) {
         this.lastCurrentTime = this.media.currentTime;
       }
@@ -2614,6 +2619,9 @@ var StreamController = function (_EventHandler) {
         var demuxer = this.demuxer;
         if (demuxer) {
           demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN);
+        }
+        if (data.payload.final) {
+          fragCurrent.loaded = true;
         }
       }
       this.fragLoadError = 0;
@@ -6643,7 +6651,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-37';
+      return '0.6.1-39';
     }
   }, {
     key: 'Events',
