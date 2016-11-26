@@ -300,7 +300,7 @@
   remux(data, final, flush, lastSegment) {
     var _saveAVCSamples = [], _saveAACSamples = [], _saveID3Samples = [],
         _saveTextSamples = [], maxk, samples = this._avcTrack.samples,
-        startPTS, endPTS, gopEndDTS;
+        startPTS, endPTS, gopEndDTS, videoStartPTS, videoEndPTS;
     let timescale = this.remuxer.PES_TIMESCALE;
     if (samples.length && final) {
       this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts)-(this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts))/timescale;
@@ -308,8 +308,8 @@
         samples[0].dts -timescale * this.timeOffset : this.remuxer._initDTS;
       let startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDTS === undefined ? samples[0].dts : this.gopStartDTS) - initDTS,this.nextAvcDts),0);
       let sample = samples[samples.length-1];
-      let videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS,this.nextAvcDts),0)/timescale;
-      let videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS,this.nextAvcDts),0)/timescale;
+      videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS,this.nextAvcDts),0)/timescale;
+      videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS,this.nextAvcDts),0)/timescale;
       if (Math.abs(startDTS-this.nextAvcDts)>90) {
         videoStartPTS -= (startDTS-this.nextAvcDts)/timescale;
       }
@@ -318,16 +318,6 @@
       }
       startPTS = videoStartPTS;
       endPTS = videoEndPTS;
-      if (this._aacTrack.audiosamplerate) {
-        let expectedSampleDuration = 1024/this._aacTrack.audiosamplerate;
-        let nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts/timescale : this.timeOffset;
-        startPTS = Math.max(startPTS, nextAacPTS+(this.fragStartAACPos-this.remuxAACCount)*expectedSampleDuration);
-        endPTS = Math.min(endPTS, nextAacPTS+expectedSampleDuration*this._aacTrack.samples.length);
-        let AVUnsync;
-        if ((AVUnsync = endPTS-startPTS+videoStartPTS-videoEndPTS)>0.2) {
-          this.fragStats.AVUnsync = AVUnsync;
-        }
-      }
       // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
     }
     if (!flush) {
@@ -348,10 +338,20 @@
       }
     }
     if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length+this._aacTrack.samples.length || maxk>0) {
-      this.remuxAVCCount += this._avcTrack.samples.length;
-      this.remuxAACCount += this._aacTrack.samples.length;
       this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset,
         flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
+      if (this._aacTrack.audiosamplerate) {
+        let expectedSampleDuration = 1024/this._aacTrack.audiosamplerate;
+        let nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts/timescale : this.timeOffset;
+        startPTS = Math.max(startPTS, nextAacPTS+(this.fragStartAACPos-this.remuxAACCount)*expectedSampleDuration);
+        endPTS = Math.min(endPTS, nextAacPTS+expectedSampleDuration*this._aacTrack.samples.length);
+        let AVUnsync;
+        if ((AVUnsync = endPTS-startPTS+videoStartPTS-videoEndPTS)>0.2) {
+          this.fragStats.AVUnsync = AVUnsync;
+        }
+      }
+      this.remuxAVCCount += this._avcTrack.samples.length;
+      this.remuxAACCount += this._aacTrack.samples.length;
       this.lastContiguous = undefined;
       this.nextStartPts = this.remuxer.endPTS;
       this._avcTrack.samples = _saveAVCSamples;

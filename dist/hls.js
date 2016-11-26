@@ -5288,15 +5288,17 @@ var TSDemuxer = function () {
           samples = this._avcTrack.samples,
           startPTS,
           endPTS,
-          gopEndDTS;
+          gopEndDTS,
+          videoStartPTS,
+          videoEndPTS;
       var timescale = this.remuxer.PES_TIMESCALE;
       if (samples.length && final) {
         this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - (this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts)) / timescale;
         var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - timescale * this.timeOffset : this.remuxer._initDTS;
         var startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDTS === undefined ? samples[0].dts : this.gopStartDTS) - initDTS, this.nextAvcDts), 0);
         var sample = samples[samples.length - 1];
-        var videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / timescale;
-        var videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / timescale;
+        videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / timescale;
+        videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / timescale;
         if (Math.abs(startDTS - this.nextAvcDts) > 90) {
           videoStartPTS -= (startDTS - this.nextAvcDts) / timescale;
         }
@@ -5305,16 +5307,6 @@ var TSDemuxer = function () {
         }
         startPTS = videoStartPTS;
         endPTS = videoEndPTS;
-        if (this._aacTrack.audiosamplerate) {
-          var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
-          var nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
-          startPTS = Math.max(startPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
-          endPTS = Math.min(endPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
-          var AVUnsync = void 0;
-          if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
-            this.fragStats.AVUnsync = AVUnsync;
-          }
-        }
         // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
       }
       if (!flush) {
@@ -5335,9 +5327,19 @@ var TSDemuxer = function () {
         }
       }
       if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
+        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
+        if (this._aacTrack.audiosamplerate) {
+          var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
+          var nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
+          startPTS = Math.max(startPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
+          endPTS = Math.min(endPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
+          var AVUnsync = void 0;
+          if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
+            this.fragStats.AVUnsync = AVUnsync;
+          }
+        }
         this.remuxAVCCount += this._avcTrack.samples.length;
         this.remuxAACCount += this._aacTrack.samples.length;
-        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
         this.lastContiguous = undefined;
         this.nextStartPts = this.remuxer.endPTS;
         this._avcTrack.samples = _saveAVCSamples;
@@ -6753,6 +6755,8 @@ var Hls = function () {
       throw new Error('Illegal hls.js config: "liveMaxLatencyDuration" must be gt "liveSyncDuration"');
     }
 
+    config.debug = true;
+    config.enableWorker = false;
     (0, _logger.enableLogs)(config.debug);
     this.config = config;
     // observer setup
@@ -8750,7 +8754,8 @@ var MP4Remuxer = function () {
       var pesTimeScale = this.PES_TIMESCALE,
           mp4timeScale = track.timescale ? track.timescale : track.audiosamplerate,
           pes2mp4ScaleFactor = pesTimeScale / mp4timeScale,
-          startDTS = (contiguous ? this.nextAacPts : timeOffset * pesTimeScale) + this._initDTS,
+          startDTS = (contiguous ? this.nextAacPts : videoData.startDTS * pesTimeScale) + this._initDTS,
+          endDTS = videoData.endDTS * pesTimeScale + this._initDTS,
 
 
       // one sample's duration value
@@ -8759,7 +8764,7 @@ var MP4Remuxer = function () {
 
 
       // samples count of this segment's duration
-      nbSamples = Math.ceil((videoData.endDTS - videoData.startDTS) * pesTimeScale / frameDuration),
+      nbSamples = Math.ceil((endDTS - startDTS) / frameDuration),
 
 
       // silent frame
@@ -8780,7 +8785,7 @@ var MP4Remuxer = function () {
       }
       track.samples = samples;
 
-      this.remuxAudio(track, timeOffset, contiguous, stats);
+      this.remuxAudio(track, timeOffset, contiguous, undefined, stats);
     }
   }, {
     key: 'remuxID3',
@@ -10503,7 +10508,7 @@ function formatMsg(type, msg) {
 }
 
 function consolePrintFn(type) {
-  var func = window.console[type];
+  var func = console.log; //window.console[type];
   if (func) {
     return function () {
       for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
@@ -10513,7 +10518,7 @@ function consolePrintFn(type) {
       if (args[0]) {
         args[0] = formatMsg(type, args[0]);
       }
-      func.apply(window.console, args);
+      func.apply( /*window.*/console, args);
     };
   }
   return noop;
