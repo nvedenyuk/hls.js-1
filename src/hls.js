@@ -120,6 +120,8 @@ class Hls {
       throw new Error('Illegal hls.js config: "liveMaxLatencyDuration" must be gt "liveSyncDuration"');
     }
 
+    config.debug = true;
+    config.enableWorker = false;
     enableLogs(config.debug);
     this.config = config;
     // observer setup
