@@ -5288,17 +5288,15 @@ var TSDemuxer = function () {
           samples = this._avcTrack.samples,
           startPTS,
           endPTS,
-          gopEndDTS,
-          videoStartPTS,
-          videoEndPTS;
+          gopEndDTS;
       var timescale = this.remuxer.PES_TIMESCALE;
       if (samples.length && final) {
         this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - (this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts)) / timescale;
         var initDTS = this.remuxer._initDTS === undefined ? samples[0].dts - timescale * this.timeOffset : this.remuxer._initDTS;
         var startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDTS === undefined ? samples[0].dts : this.gopStartDTS) - initDTS, this.nextAvcDts), 0);
         var sample = samples[samples.length - 1];
-        videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / timescale;
-        videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / timescale;
+        var videoStartPTS = Math.max(this.remuxer._PTSNormalize((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts) - initDTS, this.nextAvcDts), 0) / timescale;
+        var videoEndPTS = Math.max(this.remuxer._PTSNormalize(sample.pts - initDTS, this.nextAvcDts), 0) / timescale;
         if (Math.abs(startDTS - this.nextAvcDts) > 90) {
           videoStartPTS -= (startDTS - this.nextAvcDts) / timescale;
         }
@@ -5307,6 +5305,19 @@ var TSDemuxer = function () {
         }
         startPTS = videoStartPTS;
         endPTS = videoEndPTS;
+        if (this._aacTrack.audiosamplerate) {
+          var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
+          var remuxAACCount = this._aacTrack.samples.length;
+          var nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
+          startPTS = Math.max(startPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
+          if (remuxAACCount) {
+            endPTS = Math.min(endPTS, nextAacPTS + expectedSampleDuration * remuxAACCount);
+          }
+          var AVUnsync = void 0;
+          if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
+            this.fragStats.AVUnsync = AVUnsync;
+          }
+        }
         // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
       }
       if (!flush) {
@@ -5327,19 +5338,9 @@ var TSDemuxer = function () {
         }
       }
       if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
-        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
-        if (this._aacTrack.audiosamplerate) {
-          var expectedSampleDuration = 1024 / this._aacTrack.audiosamplerate;
-          var nextAacPTS = (this.lastContiguous !== undefined && this.lastContiguous || this.contiguous && this.remuxAACCount) && this.remuxer.nextAacPts ? this.remuxer.nextAacPts / timescale : this.timeOffset;
-          startPTS = Math.max(startPTS, nextAacPTS + (this.fragStartAACPos - this.remuxAACCount) * expectedSampleDuration);
-          endPTS = Math.min(endPTS, nextAacPTS + expectedSampleDuration * this._aacTrack.samples.length);
-          var AVUnsync = void 0;
-          if ((AVUnsync = endPTS - startPTS + videoStartPTS - videoEndPTS) > 0.2) {
-            this.fragStats.AVUnsync = AVUnsync;
-          }
-        }
         this.remuxAVCCount += this._avcTrack.samples.length;
         this.remuxAACCount += this._aacTrack.samples.length;
+        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
         this.lastContiguous = undefined;
         this.nextStartPts = this.remuxer.endPTS;
         this._avcTrack.samples = _saveAVCSamples;
