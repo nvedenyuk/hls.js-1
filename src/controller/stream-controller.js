@@ -103,6 +103,10 @@ class StreamController extends EventHandler {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
+    if (this.demuxer) {
+      this.demuxer.destroy();
+      this.demuxer = null;
+    }
     this.state = State.STOPPED;
   }
 
