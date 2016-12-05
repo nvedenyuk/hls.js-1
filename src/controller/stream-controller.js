@@ -115,7 +115,9 @@ class StreamController extends EventHandler {
     if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
         this.waitDemuxer = true;
         this.fragCurrent = frag;
-        this.demuxer.w.postMessage({event: Event.DEMUXER_QUEUE_EMPTY});
+        this.demuxer.w.postMessage({cmd: 'on_last'});
+    } else if (this.waitDemuxer) {
+      this.onDemuxerQueueEmpty();
     }
     this.state = State.STOPPED;
   }

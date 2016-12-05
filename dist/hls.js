@@ -1850,7 +1850,9 @@ var StreamController = function (_EventHandler) {
       if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
         this.waitDemuxer = true;
         this.fragCurrent = frag;
-        this.demuxer.w.postMessage({ event: _events2.default.DEMUXER_QUEUE_EMPTY });
+        this.demuxer.w.postMessage({ cmd: 'on_last' });
+      } else if (this.waitDemuxer) {
+        this.onDemuxerQueueEmpty();
       }
       this.state = State.STOPPED;
     }
@@ -4198,6 +4200,10 @@ var DemuxerWorker = function DemuxerWorker(self) {
         break;
       case 'demux':
         self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN);
+        break;
+      case 'on_last':
+        console.log('on_last');
+        self.postMessage({ event: _events2.default.DEMUXER_QUEUE_EMPTY });
         break;
       default:
         break;
@@ -6670,7 +6676,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-44';
+      return '0.6.1-45';
     }
   }, {
     key: 'Events',
