@@ -1828,6 +1828,12 @@ var StreamController = function (_EventHandler) {
       }
     }
   }, {
+    key: 'onDemuxerQueueEmpty',
+    value: function onDemuxerQueueEmpty() {
+      _logger.logger.warn('onDemuxerQueueEmpty');
+      this.waitDemuxer = false;
+    }
+  }, {
     key: 'stopLoad',
     value: function stopLoad() {
       var frag = this.fragCurrent;
@@ -1838,9 +1844,9 @@ var StreamController = function (_EventHandler) {
         this.fragCurrent = null;
       }
       this.fragPrevious = null;
-      if (this.demuxer) {
-        this.demuxer.destroy();
-        this.demuxer = null;
+      if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
+        this.waitDemuxer = true;
+        this.demuxer.w.postMessage({ event: _events2.default.DEMUXER_QUEUE_EMPTY });
       }
       this.state = State.STOPPED;
     }
@@ -2735,7 +2741,7 @@ var StreamController = function (_EventHandler) {
     value: function onFragParsingData(data) {
       var _this2 = this;
 
-      if (this.state === State.PARSING) {
+      if (this.state === State.PARSING || this.waitDemuxer) {
         this.tparse2 = Date.now();
         var frag = this.fragCurrent;
         _logger.logger.log('parsed ' + data.type + ',PTS:[' + data.startPTS.toFixed(3) + ',' + data.endPTS.toFixed(3) + '],DTS:[' + data.startDTS.toFixed(3) + '/' + data.endDTS.toFixed(3) + '],nb:' + data.nb);
@@ -6660,7 +6666,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-42';
+      return '0.6.1-43';
     }
   }, {
     key: 'Events',

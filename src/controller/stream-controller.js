@@ -94,6 +94,11 @@ class StreamController extends EventHandler {
     }
   }
 
+  onDemuxerQueueEmpty() {
+    logger.warn('onDemuxerQueueEmpty');
+    this.waitDemuxer = false;
+  }
+
   stopLoad() {
     var frag = this.fragCurrent;
     if (frag) {
@@ -103,9 +108,9 @@ class StreamController extends EventHandler {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
-    if (this.demuxer) {
-      this.demuxer.destroy();
-      this.demuxer = null;
+    if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
+        this.waitDemuxer = true;
+        this.demuxer.w.postMessage({event: Event.DEMUXER_QUEUE_EMPTY});
     }
     this.state = State.STOPPED;
   }
@@ -977,7 +982,7 @@ class StreamController extends EventHandler {
   }
 
   onFragParsingData(data) {
-    if (this.state === State.PARSING) {
+    if (this.state === State.PARSING || this.waitDemuxer) {
       this.tparse2 = Date.now();
       var frag = this.fragCurrent;
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
