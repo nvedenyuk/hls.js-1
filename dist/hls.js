@@ -1832,6 +1832,9 @@ var StreamController = function (_EventHandler) {
     value: function onDemuxerQueueEmpty() {
       _logger.logger.warn('onDemuxerQueueEmpty');
       this.waitDemuxer = false;
+      if (this.state === State.STOPPED) {
+        this.fragCurrent = null;
+      }
     }
   }, {
     key: 'stopLoad',
@@ -1846,6 +1849,7 @@ var StreamController = function (_EventHandler) {
       this.fragPrevious = null;
       if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
         this.waitDemuxer = true;
+        this.fragCurrent = frag;
         this.demuxer.w.postMessage({ event: _events2.default.DEMUXER_QUEUE_EMPTY });
       }
       this.state = State.STOPPED;
@@ -6666,7 +6670,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-43';
+      return '0.6.1-44';
     }
   }, {
     key: 'Events',
