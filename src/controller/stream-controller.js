@@ -45,7 +45,8 @@ class StreamController extends EventHandler {
       Event.FRAG_PARSED,
       Event.ERROR,
       Event.BUFFER_APPENDED,
-      Event.BUFFER_FLUSHED);
+      Event.BUFFER_FLUSHED,
+      Event.DEMUXER_QUEUE_EMPTY);
 
     this.config = hls.config;
     this.audioCodecSwap = false;
