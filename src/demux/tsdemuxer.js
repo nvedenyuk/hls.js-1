@@ -339,12 +339,20 @@
       // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
     }
     if (!flush) {
+      var prevk;
       // save samples and break by GOP
       for (maxk=samples.length-1; maxk>0; maxk--) {
-        if (samples[maxk].key) {
+        if (samples[maxk].key && !prevk) {
+          prevk = maxk;
+          continue;
+          //break;
+        }
+        if (samples[maxk].key && prevk) {
+          prevk = maxk;
           break;
         }
       }
+      maxk = prevk;
       if (maxk>0) {
         _saveAVCSamples = samples.slice(maxk);
         this._avcTrack.samples = samples.slice(0, maxk);
