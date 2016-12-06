@@ -5023,10 +5023,10 @@ var TSDemuxer = function () {
     }
   }, {
     key: 'switchLevel',
-    value: function switchLevel() {
+    value: function switchLevel(flush) {
       // flush end of previous segment
       if (this._avcTrack.samples.length) {
-        this.remux(null, false, true, false);
+        this.remux(null, false, true, false, flush);
       }
       this.pmtParsed = false;
       this._pmtId = -1;
@@ -5097,7 +5097,7 @@ var TSDemuxer = function () {
       }
       if (level !== this.lastLevel) {
         _logger.logger.log('level switch detected');
-        this.switchLevel();
+        this.switchLevel(flush);
         this.lastLevel = level;
       }
       /*if (flush && this.saveAVCSamples) {
@@ -5125,7 +5125,7 @@ var TSDemuxer = function () {
         // flush any partial content
         if (this._avcTrack.samples.length) {
           _logger.logger.log('flush any partial content');
-          this.remux(null, false, true, false);
+          this.remux(null, false, true, false, flush);
         }
         this.aacOverFlow = null;
         this._clearAllData();
@@ -8550,8 +8550,8 @@ var MP4Remuxer = function () {
       moof = _mp4Generator2.default.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
       track.samples = [];
       var data = {
-        data1: moof,
-        data2: mdat,
+        data1: moof.slice(),
+        data2: mdat.slice(),
         startPTS: firstPTS / pesTimeScale,
         endPTS: (lastPTS + pes2mp4ScaleFactor * mp4SampleDuration) / pesTimeScale,
         startDTS: firstDTS / pesTimeScale,
@@ -8561,6 +8561,8 @@ var MP4Remuxer = function () {
         nb: outputSamples.length
       };
       this.observer.trigger(_events2.default.FRAG_PARSING_DATA, data);
+      data.data1 = moof;
+      data.data2 = mdat;
       return data;
     }
   }, {
@@ -8776,8 +8778,8 @@ var MP4Remuxer = function () {
         moof = _mp4Generator2.default.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
         track.samples = [];
         var audioData = {
-          data1: moof,
-          data2: mdat,
+          data1: moof.slice(),
+          data2: mdat.slice(),
           startPTS: firstPTS / pesTimeScale,
           endPTS: this.nextAacPts / pesTimeScale,
           startDTS: firstDTS / pesTimeScale,
@@ -8786,6 +8788,8 @@ var MP4Remuxer = function () {
           nb: nbSamples
         };
         this.observer.trigger(_events2.default.FRAG_PARSING_DATA, audioData);
+        audioData.data1 = moof;
+        audioData.data2 = mdat;
         return audioData;
       }
       return null;

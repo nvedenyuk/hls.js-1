@@ -336,8 +336,8 @@ class MP4Remuxer {
     moof = MP4.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
     track.samples = [];
     let data = {
-      data1: moof,
-      data2: mdat,
+      data1: moof.slice(),
+      data2: mdat.slice(),
       startPTS: firstPTS / pesTimeScale,
       endPTS: (lastPTS + pes2mp4ScaleFactor * mp4SampleDuration) / pesTimeScale,
       startDTS: firstDTS / pesTimeScale,
@@ -347,6 +347,8 @@ class MP4Remuxer {
       nb: outputSamples.length
     };
     this.observer.trigger(Event.FRAG_PARSING_DATA, data);
+    data.data1 = moof;
+    data.data2 = mdat;
     return data;
   }
 
@@ -553,8 +555,8 @@ class MP4Remuxer {
       moof = MP4.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
       track.samples = [];
       let audioData = {
-        data1: moof,
-        data2: mdat,
+        data1: moof.slice(),
+        data2: mdat.slice(),
         startPTS: firstPTS / pesTimeScale,
         endPTS: this.nextAacPts / pesTimeScale,
         startDTS: firstDTS / pesTimeScale,
@@ -563,6 +565,8 @@ class MP4Remuxer {
         nb: nbSamples
       };
       this.observer.trigger(Event.FRAG_PARSING_DATA, audioData);
+      audioData.data1 = moof;
+      audioData.data2 = mdat;
       return audioData;
     }
     return null;

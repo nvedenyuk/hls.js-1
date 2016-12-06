@@ -49,10 +49,10 @@
     return (data.length >= 3*188 && data[0] === 0x47 && data[188] === 0x47 && data[2*188] === 0x47);
   }
 
-  switchLevel() {
+  switchLevel(flush) {
     // flush end of previous segment
     if (this._avcTrack.samples.length) {
-      this.remux(null, false, true, false);
+      this.remux(null, false, true, false, flush);
     }
     this.pmtParsed = false;
     this._pmtId = -1;
@@ -106,7 +106,7 @@
     }
     if (level !== this.lastLevel) {
       logger.log('level switch detected');
-      this.switchLevel();
+      this.switchLevel(flush);
       this.lastLevel = level;
     }
     /*if (flush && this.saveAVCSamples) {
@@ -134,7 +134,7 @@
       // flush any partial content
       if (this._avcTrack.samples.length) {
         logger.log('flush any partial content');
-        this.remux(null, false, true, false);
+        this.remux(null, false, true, false, flush);
       }
       this.aacOverFlow = null;
       this._clearAllData();
