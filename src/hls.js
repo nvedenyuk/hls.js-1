@@ -121,7 +121,7 @@ class Hls {
     }
 
     config.debug = true;
-    config.enableWorker = false;
+    //config.enableWorker = false;
     enableLogs(config.debug);
     this.config = config;
     // observer setup
