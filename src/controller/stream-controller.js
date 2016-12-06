@@ -45,7 +45,8 @@ class StreamController extends EventHandler {
       Event.FRAG_PARSED,
       Event.ERROR,
       Event.BUFFER_APPENDED,
-      Event.BUFFER_FLUSHED);
+      Event.BUFFER_FLUSHED,
+      Event.DEMUXER_QUEUE_EMPTY);
 
     this.config = hls.config;
     this.audioCodecSwap = false;
@@ -91,6 +92,14 @@ class StreamController extends EventHandler {
     } else {
       logger.warn('cannot start loading as manifest not parsed yet');
       this.state = State.STOPPED;
+    }
+  }
+
+  onDemuxerQueueEmpty() {
+    logger.warn('onDemuxerQueueEmpty');
+    this.waitDemuxer = false;
+    if (this.state === State.STOPPED) {
+      this.fragCurrent = null;
     }
   }
 
@@ -980,7 +989,7 @@ class StreamController extends EventHandler {
   }
 
   onFragParsingData(data) {
-    if (this.state === State.PARSING) {
+    if (this.state === State.PARSING || this.waitDemuxer) {
       this.tparse2 = Date.now();
       var frag = this.fragCurrent;
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
