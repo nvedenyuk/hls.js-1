@@ -5362,8 +5362,8 @@ var TSDemuxer = function () {
           this._filterSamples(this._id3Track, gopEndDTS, _saveID3Samples);
           this._filterSamples(this._txtTrack, gopEndDTS, _saveTextSamples);
         }
-        this.saveAVCSamples = samples.slice();
-        this.saveAACSamples = this._aacTrack.samples.slice();
+        this.saveAVCSamples = samples.slice(0, maxk);
+        this.saveAACSamples = this._aacTrack.samples.slice(0, this._aacTrack.samples.lenght - _saveAACSamples.length);
       }
       if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
         this.remuxAVCCount += this._avcTrack.samples.length;
@@ -6684,7 +6684,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-55';
+      return '0.6.1-56';
     }
   }, {
     key: 'Events',
