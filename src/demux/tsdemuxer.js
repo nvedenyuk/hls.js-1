@@ -366,7 +366,7 @@
         this._filterSamples(this._txtTrack, gopEndDTS, _saveTextSamples);
       }
       this.saveAVCSamples = samples.slice(0, maxk);
-      this.saveAACSamples = this._aacTrack.samples.slice(0, this._aacTrack.samples.lenght - _saveAACSamples.length);
+      this.saveAACSamples = this._aacTrack.samples.slice(0, this._aacTrack.samples.length - _saveAACSamples.length);
     }
     if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length+this._aacTrack.samples.length || maxk>0) {
       this.remuxAVCCount += this._avcTrack.samples.length;
