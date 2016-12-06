@@ -111,17 +111,17 @@
     }
     if (flush && this.saveAVCSamples) {
       var tAVC = this._avcTrack.samples, tAAC = this._aacTrack.samples;
-      var tNextAacPts = this.muxer.nextAacPts, tNextAvcDts = this.muxer.nextAvcDts;
+      var tNextAacPts = this.remuxer.nextAacPts, tNextAvcDts = this.remuxer.nextAvcDts;
       logger.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
       console.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
       this._avcTrack.samples = this.saveAVCSamples;
       this._recalcTrack(this._avcTrack);
       this._aacTrack.samples = this.saveAACSamples;
       this._recalcTrack(this._aacTrack);
-      this.muxer.nextAacPts = this.muxer.nextAvcDts = undefined;
+      this.remuxer.nextAacPts = this.remuxer.nextAvcDts = undefined;
       this.remux(null, false, true, false);
-      this.nextAacPts = tNextAacPts;
-      this.nextAvcDts = tNextAvcDts;
+      this.remuxer.nextAacPts = tNextAacPts;
+      this.remuxer.nextAvcDts = tNextAvcDts;
       this._avcTrack.samples = tAVC;
       this._recalcTrack(this._avcTrack);
       this._aacTrack.samples = tAAC;
