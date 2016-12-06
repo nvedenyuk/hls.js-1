@@ -4112,7 +4112,7 @@ var DemuxerInline = function () {
     }
   }, {
     key: 'push',
-    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN) {
+    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush) {
       var demuxer = this.demuxer;
       if (!demuxer) {
         var hls = this.hls;
@@ -4134,7 +4134,7 @@ var DemuxerInline = function () {
       if (first) {
         this.timeOffset = timeOffset;
       }
-      demuxer.push(data, audioCodec, videoCodec, this.timeOffset, cc, level, sn, duration, accurate, first, final, lastSN);
+      demuxer.push(data, audioCodec, videoCodec, this.timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush);
     }
   }]);
 
@@ -6667,7 +6667,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-49';
+      return '0.6.1-50';
     }
   }, {
     key: 'Events',
