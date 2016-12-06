@@ -5098,6 +5098,9 @@ var TSDemuxer = function () {
         this.switchLevel();
         this.lastLevel = level;
       }
+      if (flush) {
+        _logger.logger.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
+      }
       if (!flush && (sn === this.lastSN + 1 || !first)) {
         this.contiguous = true;
       } else {
@@ -6664,7 +6667,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-48';
+      return '0.6.1-49';
     }
   }, {
     key: 'Events',
