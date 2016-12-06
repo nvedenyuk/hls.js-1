@@ -5110,7 +5110,7 @@ var TSDemuxer = function () {
         this.remux(null, false, true, false);
         this._avcTrack.samples = tAVC;
         this._aacTrack.samples = tAAC;
-        this._avcTrack.samples = this._aacTrack.samples = undefined;
+        this.saveAVCSamples = this.saveAACSamples = undefined;
       }
       if (sn === this.lastSN + 1 || !first) {
         this.contiguous = true;
@@ -6680,7 +6680,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-53';
+      return '0.6.1-54';
     }
   }, {
     key: 'Events',

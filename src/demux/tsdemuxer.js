@@ -118,7 +118,7 @@
       this.remux(null, false, true, false);
       this._avcTrack.samples = tAVC;
       this._aacTrack.samples = tAAC;
-      this._avcTrack.samples = this._aacTrack.samples = undefined;
+      this.saveAVCSamples = this.saveAACSamples = undefined;
     }
     if (sn === (this.lastSN+1) || !first) {
       this.contiguous = true;
