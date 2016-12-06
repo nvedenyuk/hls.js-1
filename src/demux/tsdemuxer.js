@@ -89,7 +89,7 @@
   }
 
   // feed incoming data to the front of the parsing pipeline
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN){
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush){
     var avcData = this._avcData, aacData = this._aacData, pes,
         id3Data = this._id3Data, start, len = data.length, stt, pid, atf,
         offset, codecsOnly = this.remuxer.passthrough, unknownPIDs = false;
@@ -109,7 +109,7 @@
       this.switchLevel();
       this.lastLevel = level;
     }
-    if (sn === (this.lastSN+1) || !first) {
+    if (!flush && (sn === (this.lastSN+1) || !first)) {
       this.contiguous = true;
     } else {
       // flush any partial content

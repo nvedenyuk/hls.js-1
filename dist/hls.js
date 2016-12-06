@@ -1838,6 +1838,10 @@ var StreamController = function (_EventHandler) {
         this.fragCurrent = null;
       }
       this.fragPrevious = null;
+      if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
+        _logger.logger.warn('stopLoad in State.PARSING');
+        this.flushNext = true;
+      }
       this.state = State.STOPPED;
     }
   }, {
@@ -2618,7 +2622,10 @@ var StreamController = function (_EventHandler) {
         }
         var demuxer = this.demuxer;
         if (demuxer) {
-          demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN);
+          demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN, this.flushNext);
+          if (this.flushNext) {
+            this.flushNext = false;
+          }
         }
         if (data.payload.final) {
           fragCurrent.loaded = true;
@@ -4183,7 +4190,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
         self.demuxer = new _demuxerInline2.default(observer, data.typeSupported, JSON.parse(data.config));
         break;
       case 'demux':
-        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN);
+        self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN, data.flush);
         break;
       default:
         break;
@@ -4306,17 +4313,17 @@ var Demuxer = function () {
     }
   }, {
     key: 'pushDecrypted',
-    value: function pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN) {
+    value: function pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush) {
       if (this.w) {
         // post fragment payload as transferable objects (no copy)
-        this.w.postMessage({ cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn: sn, duration: duration, accurate: accurate, first: first, final: final, lastSN: lastSN }, [data]);
+        this.w.postMessage({ cmd: 'demux', data: data, audioCodec: audioCodec, videoCodec: videoCodec, timeOffset: timeOffset, cc: cc, level: level, sn: sn, duration: duration, accurate: accurate, first: first, final: final, lastSN: lastSN, flush: flush }, [data]);
       } else {
         this.demuxer.push(new Uint8Array(data), audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN);
       }
     }
   }, {
     key: 'push',
-    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata, accurate, lastSN) {
+    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, decryptdata, accurate, lastSN, flush) {
       if (data.first) {
         this.trail = new Uint8Array(0);
         this.trail.first = true;
@@ -4366,10 +4373,10 @@ var Demuxer = function () {
 
         var localthis = this;
         this.decrypter.decrypt(data, decryptdata.key, data.first && decryptdata.iv, function (decryptedData) {
-          localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, !!data.first, !!data.final, lastSN);
+          localthis.pushDecrypted(decryptedData, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, !!data.first, !!data.final, lastSN, flush);
         });
       } else {
-        this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, !!data.first, !!data.final, lastSN);
+        this.pushDecrypted(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, !!data.first, !!data.final, lastSN, flush);
       }
     }
   }, {
@@ -5062,7 +5069,7 @@ var TSDemuxer = function () {
 
   }, {
     key: 'push',
-    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN) {
+    value: function push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush) {
       var avcData = this._avcData,
           aacData = this._aacData,
           pes,
@@ -5091,7 +5098,7 @@ var TSDemuxer = function () {
         this.switchLevel();
         this.lastLevel = level;
       }
-      if (sn === this.lastSN + 1 || !first) {
+      if (!flush && (sn === this.lastSN + 1 || !first)) {
         this.contiguous = true;
       } else {
         // flush any partial content
@@ -6450,9 +6457,11 @@ var LevelHelper = function () {
           newFrag.endPTS = oldFrag.endPTS;
           newFrag.duration = oldFrag.duration;
           newFrag.PTSDTSshift = oldFrag.PTSDTSshift;
-          newFrag.firstGop = oldFrag.firstGop;
           newFrag.lastGop = oldFrag.lastGop;
           PTSFrag = newFrag;
+        }
+        if (oldFrag.firstGop) {
+          newFrag.firstGop = oldFrag.firstGop;
         }
       }
 
@@ -6654,7 +6663,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-39';
+      return '0.6.1-46';
     }
   }, {
     key: 'Events',

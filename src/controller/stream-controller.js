@@ -103,6 +103,10 @@ class StreamController extends EventHandler {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
+    if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
+      logger.warn('stopLoad in State.PARSING');
+      this.flushNext = true;
+    }
     this.state = State.STOPPED;
   }
 
@@ -864,7 +868,10 @@ class StreamController extends EventHandler {
       }
       let demuxer = this.demuxer;
       if (demuxer) {
-        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN);
+        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN, this.flushNext);
+        if (this.flushNext) {
+          this.flushNext = false;
+        }
       }
       if (data.payload.final) {
         fragCurrent.loaded = true;
