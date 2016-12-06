@@ -5103,15 +5103,15 @@ var TSDemuxer = function () {
       if (flush && this.saveAVCSamples) {
         var tAVC = this._avcTrack.samples,
             tAAC = this._aacTrack.samples;
-        var tNextAacPts = this.nextAacPts,
-            tNextAvcDts = this.nextAvcDts;
+        var tNextAacPts = this.muxer.nextAacPts,
+            tNextAvcDts = this.muxer.nextAvcDts;
         _logger.logger.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
         console.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
         this._avcTrack.samples = this.saveAVCSamples;
         this._recalcTrack(this._avcTrack);
         this._aacTrack.samples = this.saveAACSamples;
         this._recalcTrack(this._aacTrack);
-        this.nextAacPts = this.nextAvcDts = undefined;
+        this.muxer.nextAacPts = this.muxer.nextAvcDts = undefined;
         this.remux(null, false, true, false);
         this.nextAacPts = tNextAacPts;
         this.nextAvcDts = tNextAvcDts;
