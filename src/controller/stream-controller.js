@@ -999,7 +999,7 @@ class StreamController extends EventHandler {
       //trigger handler right now
       this.tick();
     } else {
-      logger.warn(`not in PARSING state but ${this.state}, ignoring FRAG_PARSING_DATA event`);
+      logger.warn(`not in PARSING state but ${this.state}, ignoring FRAG_PARSING_DATA event for ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
     }
   }
 

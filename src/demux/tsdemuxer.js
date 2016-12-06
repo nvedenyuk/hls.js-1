@@ -114,6 +114,7 @@
     } else {
       // flush any partial content
       if (this._avcTrack.samples.length) {
+        logger.log('flush any partial content');
         this.remux(null, false, true, false);
       }
       this.aacOverFlow = null;

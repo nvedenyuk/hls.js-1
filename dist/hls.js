@@ -2757,7 +2757,7 @@ var StreamController = function (_EventHandler) {
         //trigger handler right now
         this.tick();
       } else {
-        _logger.logger.warn('not in PARSING state but ' + this.state + ', ignoring FRAG_PARSING_DATA event');
+        _logger.logger.warn('not in PARSING state but ' + this.state + ', ignoring FRAG_PARSING_DATA event for ' + data.type + ',PTS:[' + data.startPTS.toFixed(3) + ',' + data.endPTS.toFixed(3) + '],DTS:[' + data.startDTS.toFixed(3) + '/' + data.endDTS.toFixed(3) + '],nb:' + data.nb);
       }
     }
   }, {
@@ -5103,6 +5103,7 @@ var TSDemuxer = function () {
       } else {
         // flush any partial content
         if (this._avcTrack.samples.length) {
+          _logger.logger.log('flush any partial content');
           this.remux(null, false, true, false);
         }
         this.aacOverFlow = null;
@@ -6663,7 +6664,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-46';
+      return '0.6.1-48';
     }
   }, {
     key: 'Events',
