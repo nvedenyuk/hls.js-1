@@ -1772,7 +1772,7 @@ var StreamController = function (_EventHandler) {
   function StreamController(hls) {
     _classCallCheck(this, StreamController);
 
-    var _this = _possibleConstructorReturn(this, (StreamController.__proto__ || Object.getPrototypeOf(StreamController)).call(this, hls, _events2.default.MEDIA_ATTACHED, _events2.default.MEDIA_DETACHING, _events2.default.MANIFEST_LOADING, _events2.default.MANIFEST_PARSED, _events2.default.LEVEL_LOADED, _events2.default.LEVEL_PTS_UPDATED, _events2.default.KEY_LOADED, _events2.default.FRAG_CHUNK_LOADED, _events2.default.FRAG_LOADED, _events2.default.FRAG_LOAD_EMERGENCY_ABORTED, _events2.default.FRAG_PARSING_INIT_SEGMENT, _events2.default.FRAG_PARSING_DATA, _events2.default.FRAG_PARSED, _events2.default.ERROR, _events2.default.BUFFER_APPENDED, _events2.default.BUFFER_FLUSHED, _events2.default.DEMUXER_QUEUE_EMPTY));
+    var _this = _possibleConstructorReturn(this, (StreamController.__proto__ || Object.getPrototypeOf(StreamController)).call(this, hls, _events2.default.MEDIA_ATTACHED, _events2.default.MEDIA_DETACHING, _events2.default.MANIFEST_LOADING, _events2.default.MANIFEST_PARSED, _events2.default.LEVEL_LOADED, _events2.default.LEVEL_PTS_UPDATED, _events2.default.KEY_LOADED, _events2.default.FRAG_CHUNK_LOADED, _events2.default.FRAG_LOADED, _events2.default.FRAG_LOAD_EMERGENCY_ABORTED, _events2.default.FRAG_PARSING_INIT_SEGMENT, _events2.default.FRAG_PARSING_DATA, _events2.default.FRAG_PARSED, _events2.default.ERROR, _events2.default.BUFFER_APPENDED, _events2.default.BUFFER_FLUSHED));
 
     _this.config = hls.config;
     _this.audioCodecSwap = false;
@@ -1825,15 +1825,6 @@ var StreamController = function (_EventHandler) {
       } else {
         _logger.logger.warn('cannot start loading as manifest not parsed yet');
         this.state = State.STOPPED;
-      }
-    }
-  }, {
-    key: 'onDemuxerQueueEmpty',
-    value: function onDemuxerQueueEmpty() {
-      _logger.logger.warn('onDemuxerQueueEmpty');
-      this.waitDemuxer = false;
-      if (this.state === State.STOPPED) {
-        this.fragCurrent = null;
       }
     }
   }, {
@@ -2747,7 +2738,7 @@ var StreamController = function (_EventHandler) {
     value: function onFragParsingData(data) {
       var _this2 = this;
 
-      if (this.state === State.PARSING || this.waitDemuxer) {
+      if (this.state === State.PARSING) {
         this.tparse2 = Date.now();
         var frag = this.fragCurrent;
         _logger.logger.log('parsed ' + data.type + ',PTS:[' + data.startPTS.toFixed(3) + ',' + data.endPTS.toFixed(3) + '],DTS:[' + data.startDTS.toFixed(3) + '/' + data.endDTS.toFixed(3) + '],nb:' + data.nb);
