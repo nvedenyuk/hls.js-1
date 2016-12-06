@@ -30,7 +30,7 @@ var DemuxerWorker = function (self) {
         break;
       case 'on_last':
         console.log('on_last');
-        self.postMessage({event:  Event.DEMUXER_QUEUE_EMPTY});
+        self.postMessage({event: Event.DEMUXER_QUEUE_EMPTY});
         break;
       default:
         break;
