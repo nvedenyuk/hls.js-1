@@ -70,6 +70,7 @@ class StreamController extends EventHandler {
       this.stopLoad();
       if (!this.demuxer) {
         this.demuxer = new Demuxer(this.hls);
+        this.fragParsing = null;
       }
       if (!this.timer) {
         this.timer = setInterval(this.ontick, 100);
@@ -654,6 +655,7 @@ class StreamController extends EventHandler {
     if (this.demuxer) {
       this.demuxer.destroy();
       this.demuxer = new Demuxer(this.hls);
+      this.fragParsing = null;
     }
     if(this.levels && this.config.autoStartLoad) {
       this.hls.startLoad();
@@ -773,6 +775,7 @@ class StreamController extends EventHandler {
     if (this.demuxer) {
       this.demuxer.destroy();
       this.demuxer = new Demuxer(this.hls);
+      this.fragParsing = null;
     }
     if (this.config.autoStartLoad) {
       this.hls.startLoad();
