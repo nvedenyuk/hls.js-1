@@ -109,7 +109,7 @@
       this.switchLevel();
       this.lastLevel = level;
     }
-    if (flush && this.saveAVCSamples) {
+    /*if (flush && this.saveAVCSamples) {
       var tAVC = this._avcTrack.samples, tAAC = this._aacTrack.samples;
       var tNextAacPts = this.remuxer.nextAacPts, tNextAvcDts = this.remuxer.nextAvcDts;
       logger.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
@@ -127,7 +127,7 @@
       this._aacTrack.samples = tAAC;
       this._recalcTrack(this._aacTrack);
       this.saveAVCSamples = this.saveAACSamples = undefined;
-    }
+    }*/
     if (sn === (this.lastSN+1) || !first) {
       this.contiguous = true;
     } else {
@@ -279,7 +279,7 @@
     if (this.gopStartDTS === undefined && this._avcTrack.samples.length) {
       this.gopStartDTS = this._avcTrack.samples[0].dts;
     }
-    this.remux(null, final, final && sn === lastSN, true);
+    this.remux(null, final, final && sn === lastSN, true, flush);
     if (final)
     {
       this.observer.trigger(Event.FRAG_STATISTICS, this.fragStats);
@@ -317,7 +317,7 @@
     this._recalcTrack(track);
   }
 
-  remux(data, final, flush, lastSegment) {
+  remux(data, final, flush, lastSegment, resend) {
     var _saveAVCSamples = [], _saveAACSamples = [], _saveID3Samples = [],
         _saveTextSamples = [], maxk, samples = this._avcTrack.samples,
         startPTS, endPTS, gopEndDTS;
@@ -376,7 +376,7 @@
       this.remuxAVCCount += this._avcTrack.samples.length;
       this.remuxAACCount += this._aacTrack.samples.length;
       this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset,
-        flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
+        flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats, resend);
       this.lastContiguous = undefined;
       this.nextStartPts = this.remuxer.endPTS;
       this._avcTrack.samples = _saveAVCSamples;

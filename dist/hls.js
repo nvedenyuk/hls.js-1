@@ -5100,13 +5100,11 @@ var TSDemuxer = function () {
         this.switchLevel();
         this.lastLevel = level;
       }
-      if (flush && this.saveAVCSamples) {
-        var tAVC = this._avcTrack.samples,
-            tAAC = this._aacTrack.samples;
-        var tNextAacPts = this.remuxer.nextAacPts,
-            tNextAvcDts = this.remuxer.nextAvcDts;
-        _logger.logger.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
-        console.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
+      /*if (flush && this.saveAVCSamples) {
+        var tAVC = this._avcTrack.samples, tAAC = this._aacTrack.samples;
+        var tNextAacPts = this.remuxer.nextAacPts, tNextAvcDts = this.remuxer.nextAvcDts;
+        logger.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
+        console.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
         this._avcTrack.samples = this.saveAVCSamples;
         this._recalcTrack(this._avcTrack);
         this._aacTrack.samples = this.saveAACSamples;
@@ -5120,7 +5118,7 @@ var TSDemuxer = function () {
         this._aacTrack.samples = tAAC;
         this._recalcTrack(this._aacTrack);
         this.saveAVCSamples = this.saveAACSamples = undefined;
-      }
+      }*/
       if (sn === this.lastSN + 1 || !first) {
         this.contiguous = true;
       } else {
@@ -5272,7 +5270,7 @@ var TSDemuxer = function () {
       if (this.gopStartDTS === undefined && this._avcTrack.samples.length) {
         this.gopStartDTS = this._avcTrack.samples[0].dts;
       }
-      this.remux(null, final, final && sn === lastSN, true);
+      this.remux(null, final, final && sn === lastSN, true, flush);
       if (final) {
         this.observer.trigger(_events2.default.FRAG_STATISTICS, this.fragStats);
       }
@@ -5310,7 +5308,7 @@ var TSDemuxer = function () {
     }
   }, {
     key: 'remux',
-    value: function remux(data, final, flush, lastSegment) {
+    value: function remux(data, final, flush, lastSegment, resend) {
       var _saveAVCSamples = [],
           _saveAACSamples = [],
           _saveID3Samples = [],
@@ -5373,7 +5371,7 @@ var TSDemuxer = function () {
       if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
         this.remuxAVCCount += this._avcTrack.samples.length;
         this.remuxAACCount += this._aacTrack.samples.length;
-        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
+        this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset, flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats, resend);
         this.lastContiguous = undefined;
         this.nextStartPts = this.remuxer.endPTS;
         this._avcTrack.samples = _saveAVCSamples;
@@ -8242,7 +8240,7 @@ var MP4Remuxer = function () {
     }
   }, {
     key: 'remux',
-    value: function remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, contiguous, accurate, data, flush, stats) {
+    value: function remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, contiguous, accurate, data, flush, stats, resend) {
 
       // dummy
       data = null;
@@ -8253,27 +8251,35 @@ var MP4Remuxer = function () {
       }
 
       if (this.ISGenerated) {
+        if (resend) {
+          if (this.audioData) {
+            this.observer.trigger(_events2.default.FRAG_PARSING_DATA, this.audioData);
+          }
+          if (this.videoData) {
+            this.observer.trigger(_events2.default.FRAG_PARSING_DATA, this.videoData);
+          }
+        }
+        this.audioData = this.videoData = undefined;
         // Purposefully remuxing audio before video, so that remuxVideo can use nextAacPts, which is
         // calculated in remuxAudio.
         //logger.log('nb AAC samples:' + audioTrack.samples.length);
         if (audioTrack.samples.length) {
-          var audioData = this.remuxAudio(audioTrack, timeOffset, contiguous, accurate, stats);
+          this.audioData = this.remuxAudio(audioTrack, timeOffset, contiguous, accurate, stats);
           //logger.log('nb AVC samples:' + videoTrack.samples.length);
           if (videoTrack.samples.length) {
             var audioTrackLength = void 0;
-            if (audioData) {
-              audioTrackLength = audioData.endPTS - audioData.startPTS;
+            if (this.audioData) {
+              audioTrackLength = this.audioData.endPTS - this.audioData.startPTS;
             }
-            this.remuxVideo(videoTrack, timeOffset, contiguous, audioTrackLength, flush, stats);
+            this.videoData = this.remuxVideo(videoTrack, timeOffset, contiguous, audioTrackLength, flush, stats);
           }
         } else {
-          var videoData = void 0;
           //logger.log('nb AVC samples:' + videoTrack.samples.length);
           if (videoTrack.samples.length) {
-            videoData = this.remuxVideo(videoTrack, timeOffset, contiguous, undefined, flush, stats);
+            this.videoData = this.remuxVideo(videoTrack, timeOffset, contiguous, undefined, flush, stats);
           }
-          if (videoData && audioTrack.codec) {
-            this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, videoData, stats);
+          if (this.videoData && audioTrack.codec) {
+            this.audioData = this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, this.videoData, stats);
           }
         }
       }
@@ -8821,7 +8827,7 @@ var MP4Remuxer = function () {
       }
       track.samples = samples;
 
-      this.remuxAudio(track, timeOffset, contiguous, undefined, stats);
+      return this.remuxAudio(track, timeOffset, contiguous, undefined, stats);
     }
   }, {
     key: 'remuxID3',
