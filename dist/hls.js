@@ -5100,11 +5100,19 @@ var TSDemuxer = function () {
         this.switchLevel();
         this.lastLevel = level;
       }
-      if (flush) {
+      if (flush && this.saveAVCSamples) {
+        var tAVC = this._avcTrack.samples,
+            tAAC = this._aacTrack.samples;
         _logger.logger.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
         console.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
+        this._avcTrack.samples = this.saveAVCSamples;
+        this._aacTrack.samples = this.saveAACSamples;
+        this.remux(null, false, true, false);
+        this._avcTrack.samples = tAVC;
+        this._aacTrack.samples = tAAC;
+        this._avcTrack.samples = this._aacTrack.samples = undefined;
       }
-      if (!flush && (sn === this.lastSN + 1 || !first)) {
+      if (sn === this.lastSN + 1 || !first) {
         this.contiguous = true;
       } else {
         // flush any partial content
@@ -5335,20 +5343,12 @@ var TSDemuxer = function () {
         // console.log(`parsed total ${startPTS}/${endPTS} video ${videoStartPTS}/${videoEndPTS} shift ${this.fragStats.PTSDTSshift}`);
       }
       if (!flush) {
-        var prevk;
         // save samples and break by GOP
         for (maxk = samples.length - 1; maxk > 0; maxk--) {
-          if (samples[maxk].key && !prevk) {
-            prevk = maxk;
-            continue;
-            //break;
-          }
-          if (samples[maxk].key && prevk) {
-            prevk = maxk;
+          if (samples[maxk].key) {
             break;
           }
         }
-        maxk = prevk;
         if (maxk > 0) {
           _saveAVCSamples = samples.slice(maxk);
           this._avcTrack.samples = samples.slice(0, maxk);
@@ -5358,6 +5358,8 @@ var TSDemuxer = function () {
           this._filterSamples(this._id3Track, gopEndDTS, _saveID3Samples);
           this._filterSamples(this._txtTrack, gopEndDTS, _saveTextSamples);
         }
+        this.saveAVCSamples = samples.slice();
+        this.saveAACSamples = this._aacTrack.samples.slice();
       }
       if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length + this._aacTrack.samples.length || maxk > 0) {
         this.remuxAVCCount += this._avcTrack.samples.length;
@@ -6678,7 +6680,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-52';
+      return '0.6.1-53';
     }
   }, {
     key: 'Events',
