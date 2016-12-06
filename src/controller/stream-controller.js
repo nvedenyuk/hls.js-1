@@ -45,7 +45,8 @@ class StreamController extends EventHandler {
       Event.FRAG_PARSED,
       Event.ERROR,
       Event.BUFFER_APPENDED,
-      Event.BUFFER_FLUSHED);
+      Event.BUFFER_FLUSHED,
+      Event.DEMUXER_QUEUE_EMPTY);
 
     this.config = hls.config;
     this.audioCodecSwap = false;
@@ -94,6 +95,11 @@ class StreamController extends EventHandler {
     }
   }
 
+  onDemuxerQueueEmpty() {
+    logger.warn('onDemuxerQueueEmpty');
+    this.fragParsing = null;
+  }
+
   stopLoad() {
     var frag = this.fragCurrent;
     if (frag) {
@@ -103,6 +109,11 @@ class StreamController extends EventHandler {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
+    if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
+      logger.warn('stopLoad in State.PARSING');
+      this.fragParsing = frag;
+      this.demuxer.w.postMessage({cmd: 'empty'});
+    }
     this.state = State.STOPPED;
   }
 
@@ -705,7 +716,6 @@ class StreamController extends EventHandler {
       logger.log(`mediaController: no final chunk, switch back to IDLE state`);
       this.state = State.IDLE;
     }
-
     if (this.media) {
       this.lastCurrentTime = this.media.currentTime;
     }
@@ -973,9 +983,9 @@ class StreamController extends EventHandler {
   }
 
   onFragParsingData(data) {
-    if (this.state === State.PARSING) {
+    if (this.state === State.PARSING || this.fragParsing) {
       this.tparse2 = Date.now();
-      var frag = this.fragCurrent;
+      var frag = this.fragCurrent||this.fragParsing;
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
       var hls = this.hls;
 
