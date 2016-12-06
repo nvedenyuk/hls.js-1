@@ -28,6 +28,10 @@ var DemuxerWorker = function (self) {
         console.log('demuxer flush:' + data.flush);
         self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN, data.flush);
         break;
+      case 'on_last':
+        console.log('on_last');
+        self.postMessage({event:  Event.DEMUXER_QUEUE_EMPTY});
+        break;
       default:
         break;
     }

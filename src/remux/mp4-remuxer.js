@@ -35,7 +35,7 @@ class MP4Remuxer {
     this.ISGenerated = false;
   }
 
-  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, accurate, data, flush,stats,resend) {
+  remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, accurate, data, flush,stats) {
 
     // dummy
     data = null;
@@ -46,14 +46,6 @@ class MP4Remuxer {
     }
 
     if (this.ISGenerated) {
-      if (resend) {
-        if (this.audioData) {
-          this.observer.trigger(Event.FRAG_PARSING_DATA, this.audioData);
-        }
-        if (this.videoData) {
-          this.observer.trigger(Event.FRAG_PARSING_DATA, this.videoData);
-        }
-      }
       this.audioData = this.videoData = undefined;
       // Purposefully remuxing audio before video, so that remuxVideo can use nextAacPts, which is
       // calculated in remuxAudio.
