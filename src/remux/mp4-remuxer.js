@@ -46,27 +46,27 @@ class MP4Remuxer {
     }
 
     if (this.ISGenerated) {
-      this.audioData = this.videoData = undefined;
       // Purposefully remuxing audio before video, so that remuxVideo can use nextAacPts, which is
       // calculated in remuxAudio.
       //logger.log('nb AAC samples:' + audioTrack.samples.length);
       if (audioTrack.samples.length) {
-        this.audioData = this.remuxAudio(audioTrack,timeOffset,contiguous,accurate, stats);
+        let audioData = this.remuxAudio(audioTrack,timeOffset,contiguous,accurate, stats);
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
           let audioTrackLength;
-          if (this.audioData) {
-            audioTrackLength = this.audioData.endPTS - this.audioData.startPTS;
+          if (audioData) {
+            audioTrackLength = audioData.endPTS - audioData.startPTS;
           }
-          this.videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,flush,stats);
+          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,flush,stats);
         }
       } else {
+        let videoData;
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
-          this.videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,flush,stats);
+          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,flush,stats);
         }
-        if (this.videoData && audioTrack.codec) {
-          this.audioData = this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, this.videoData, stats);
+        if (videoData && audioTrack.codec) {
+          this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, videoData, stats);
         }
       }
     }
@@ -328,8 +328,8 @@ class MP4Remuxer {
     moof = MP4.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
     track.samples = [];
     let data = {
-      data1: moof.slice(),
-      data2: mdat.slice(),
+      data1: moof,
+      data2: mdat,
       startPTS: firstPTS / pesTimeScale,
       endPTS: (lastPTS + pes2mp4ScaleFactor * mp4SampleDuration) / pesTimeScale,
       startDTS: firstDTS / pesTimeScale,
@@ -339,8 +339,6 @@ class MP4Remuxer {
       nb: outputSamples.length
     };
     this.observer.trigger(Event.FRAG_PARSING_DATA, data);
-    data.data1 = moof;
-    data.data2 = mdat;
     return data;
   }
 
@@ -547,8 +545,8 @@ class MP4Remuxer {
       moof = MP4.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
       track.samples = [];
       let audioData = {
-        data1: moof.slice(),
-        data2: mdat.slice(),
+        data1: moof,
+        data2: mdat,
         startPTS: firstPTS / pesTimeScale,
         endPTS: this.nextAacPts / pesTimeScale,
         startDTS: firstDTS / pesTimeScale,
@@ -557,8 +555,6 @@ class MP4Remuxer {
         nb: nbSamples
       };
       this.observer.trigger(Event.FRAG_PARSING_DATA, audioData);
-      audioData.data1 = moof;
-      audioData.data2 = mdat;
       return audioData;
     }
     return null;
@@ -596,7 +592,7 @@ class MP4Remuxer {
     }
     track.samples = samples;
 
-    return this.remuxAudio(track, timeOffset, contiguous, undefined, stats);
+    this.remuxAudio(track, timeOffset, contiguous, undefined, stats);
   }
 
   remuxID3(track,timeOffset) {

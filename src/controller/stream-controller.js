@@ -112,7 +112,7 @@ class StreamController extends EventHandler {
     if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
       logger.warn('stopLoad in State.PARSING');
       this.fragParsing = frag;
-      this.demuxer.w.postMessage({cmd: 'on_last'});
+      this.demuxer.w.postMessage({cmd: 'empty'});
     }
     this.state = State.STOPPED;
   }
@@ -716,7 +716,6 @@ class StreamController extends EventHandler {
       logger.log(`mediaController: no final chunk, switch back to IDLE state`);
       this.state = State.IDLE;
     }
-
     if (this.media) {
       this.lastCurrentTime = this.media.currentTime;
     }
@@ -875,10 +874,7 @@ class StreamController extends EventHandler {
       }
       let demuxer = this.demuxer;
       if (demuxer) {
-        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN, this.flushNext);
-        if (this.flushNext) {
-          this.flushNext = false;
-        }
+        demuxer.push(data.payload, audioCodec, currentLevel.videoCodec, start, fragCurrent.cc, level, sn, duration, fragCurrent.decryptdata, details.PTSKnown || !details.live, this.levels[level].details.endSN);
       }
       if (data.payload.final) {
         fragCurrent.loaded = true;
@@ -1006,7 +1002,7 @@ class StreamController extends EventHandler {
       //trigger handler right now
       this.tick();
     } else {
-      logger.warn(`not in PARSING state but ${this.state}, ignoring FRAG_PARSING_DATA event for ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
+      logger.warn(`not in PARSING state but ${this.state}, ignoring FRAG_PARSING_DATA event`);
     }
   }
 

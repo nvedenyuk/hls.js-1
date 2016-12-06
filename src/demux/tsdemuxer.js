@@ -49,10 +49,10 @@
     return (data.length >= 3*188 && data[0] === 0x47 && data[188] === 0x47 && data[2*188] === 0x47);
   }
 
-  switchLevel(flush) {
+  switchLevel() {
     // flush end of previous segment
     if (this._avcTrack.samples.length) {
-      this.remux(null, false, true, false, flush);
+      this.remux(null, false, true, false);
     }
     this.pmtParsed = false;
     this._pmtId = -1;
@@ -89,7 +89,7 @@
   }
 
   // feed incoming data to the front of the parsing pipeline
-  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush){
+  push(data, audioCodec, videoCodec, timeOffset, cc, level, sn, duration, accurate, first, final, lastSN){
     var avcData = this._avcData, aacData = this._aacData, pes,
         id3Data = this._id3Data, start, len = data.length, stt, pid, atf,
         offset, codecsOnly = this.remuxer.passthrough, unknownPIDs = false;
@@ -106,35 +106,15 @@
     }
     if (level !== this.lastLevel) {
       logger.log('level switch detected');
-      this.switchLevel(flush);
+      this.switchLevel();
       this.lastLevel = level;
     }
-    /*if (flush && this.saveAVCSamples) {
-      var tAVC = this._avcTrack.samples, tAAC = this._aacTrack.samples;
-      var tNextAacPts = this.remuxer.nextAacPts, tNextAvcDts = this.remuxer.nextAvcDts;
-      logger.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
-      console.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
-      this._avcTrack.samples = this.saveAVCSamples;
-      this._recalcTrack(this._avcTrack);
-      this._aacTrack.samples = this.saveAACSamples;
-      this._recalcTrack(this._aacTrack);
-      this.remuxer.nextAacPts = this.remuxer.nextAvcDts = undefined;
-      this.remux(null, false, true, false);
-      this.remuxer.nextAacPts = tNextAacPts;
-      this.remuxer.nextAvcDts = tNextAvcDts;
-      this._avcTrack.samples = tAVC;
-      this._recalcTrack(this._avcTrack);
-      this._aacTrack.samples = tAAC;
-      this._recalcTrack(this._aacTrack);
-      this.saveAVCSamples = this.saveAACSamples = undefined;
-    }*/
     if (sn === (this.lastSN+1) || !first) {
       this.contiguous = true;
     } else {
       // flush any partial content
       if (this._avcTrack.samples.length) {
-        logger.log('flush any partial content');
-        this.remux(null, false, true, false, flush);
+        this.remux(null, false, true, false);
       }
       this.aacOverFlow = null;
       this._clearAllData();
@@ -279,7 +259,7 @@
     if (this.gopStartDTS === undefined && this._avcTrack.samples.length) {
       this.gopStartDTS = this._avcTrack.samples[0].dts;
     }
-    this.remux(null, final, final && sn === lastSN, true, flush);
+    this.remux(null, final, final && sn === lastSN, true);
     if (final)
     {
       this.observer.trigger(Event.FRAG_STATISTICS, this.fragStats);
@@ -317,7 +297,7 @@
     this._recalcTrack(track);
   }
 
-  remux(data, final, flush, lastSegment, resend) {
+  remux(data, final, flush, lastSegment) {
     var _saveAVCSamples = [], _saveAACSamples = [], _saveID3Samples = [],
         _saveTextSamples = [], maxk, samples = this._avcTrack.samples,
         startPTS, endPTS, gopEndDTS;
@@ -369,14 +349,12 @@
         this._filterSamples(this._id3Track, gopEndDTS, _saveID3Samples);
         this._filterSamples(this._txtTrack, gopEndDTS, _saveTextSamples);
       }
-      this.saveAVCSamples = samples.slice(0, maxk);
-      this.saveAACSamples = this._aacTrack.samples.slice(0, this._aacTrack.samples.length - _saveAACSamples.length);
     }
     if ((flush || final && !this.remuxAVCCount) && this._avcTrack.samples.length+this._aacTrack.samples.length || maxk>0) {
       this.remuxAVCCount += this._avcTrack.samples.length;
       this.remuxAACCount += this._aacTrack.samples.length;
       this.remuxer.remux(this._aacTrack, this._avcTrack, this._id3Track, this._txtTrack, flush && this.nextStartPts ? this.nextStartPts : this.timeOffset,
-        flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats, resend);
+        flush && !lastSegment || (this.lastContiguous !== undefined ? this.lastContiguous : this.contiguous), this.accurate, data, flush, this.fragStats);
       this.lastContiguous = undefined;
       this.nextStartPts = this.remuxer.endPTS;
       this._avcTrack.samples = _saveAVCSamples;
