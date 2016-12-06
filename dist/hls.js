@@ -5106,10 +5106,14 @@ var TSDemuxer = function () {
         _logger.logger.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
         console.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
         this._avcTrack.samples = this.saveAVCSamples;
+        this._recalcTrack(this._avcTrack);
         this._aacTrack.samples = this.saveAACSamples;
+        this._recalcTrack(this._aacTrack);
         this.remux(null, false, true, false);
         this._avcTrack.samples = tAVC;
+        this._recalcTrack(this._avcTrack);
         this._aacTrack.samples = tAAC;
+        this._recalcTrack(this._aacTrack);
         this.saveAVCSamples = this.saveAACSamples = undefined;
       }
       if (sn === this.lastSN + 1 || !first) {
@@ -6680,7 +6684,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-54';
+      return '0.6.1-55';
     }
   }, {
     key: 'Events',
@@ -6783,7 +6787,7 @@ var Hls = function () {
     }
 
     config.debug = true;
-    config.enableWorker = false;
+    //config.enableWorker = false;
     (0, _logger.enableLogs)(config.debug);
     this.config = config;
     // observer setup

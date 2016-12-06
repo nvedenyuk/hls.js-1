@@ -114,10 +114,14 @@
       logger.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
       console.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
       this._avcTrack.samples = this.saveAVCSamples;
+      this._recalcTrack(this._avcTrack);
       this._aacTrack.samples = this.saveAACSamples;
+      this._recalcTrack(this._aacTrack);
       this.remux(null, false, true, false);
       this._avcTrack.samples = tAVC;
+      this._recalcTrack(this._avcTrack);
       this._aacTrack.samples = tAAC;
+      this._recalcTrack(this._aacTrack);
       this.saveAVCSamples = this.saveAACSamples = undefined;
     }
     if (sn === (this.lastSN+1) || !first) {
