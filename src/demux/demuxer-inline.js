@@ -56,6 +56,7 @@ class DemuxerInline {
     if (first) {
       this.timeOffset = timeOffset;
     }
+    console.log('demuxer push flush:' + flush);
     demuxer.push(data,audioCodec,videoCodec,this.timeOffset,cc,level,sn,duration,accurate,first,final,lastSN,flush);
   }
 }

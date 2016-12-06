@@ -4134,6 +4134,7 @@ var DemuxerInline = function () {
       if (first) {
         this.timeOffset = timeOffset;
       }
+      console.log('demuxer push flush:' + flush);
       demuxer.push(data, audioCodec, videoCodec, this.timeOffset, cc, level, sn, duration, accurate, first, final, lastSN, flush);
     }
   }]);
@@ -4190,6 +4191,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
         self.demuxer = new _demuxerInline2.default(observer, data.typeSupported, JSON.parse(data.config));
         break;
       case 'demux':
+        console.log('demuxer flush:' + data.flush);
         self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN, data.flush);
         break;
       default:
@@ -5100,6 +5102,7 @@ var TSDemuxer = function () {
       }
       if (flush) {
         _logger.logger.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
+        console.log('FLUSH _avcTrack.samples: ' + this._avcTrack.samples.length + ' fragStartAVCPos: ' + this.fragStartAVCPos);
       }
       if (!flush && (sn === this.lastSN + 1 || !first)) {
         this.contiguous = true;
@@ -6667,7 +6670,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-50';
+      return '0.6.1-51';
     }
   }, {
     key: 'Events',

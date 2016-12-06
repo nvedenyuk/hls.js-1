@@ -111,6 +111,7 @@
     }
     if (flush) {
       logger.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
+      console.log('FLUSH _avcTrack.samples: '+this._avcTrack.samples.length+' fragStartAVCPos: '+this.fragStartAVCPos);
     }
     if (!flush && (sn === (this.lastSN+1) || !first)) {
       this.contiguous = true;
