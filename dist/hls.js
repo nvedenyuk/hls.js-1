@@ -1803,6 +1803,7 @@ var StreamController = function (_EventHandler) {
         this.stopLoad();
         if (!this.demuxer) {
           this.demuxer = new _demuxer2.default(this.hls);
+          this.fragParsing = null;
         }
         if (!this.timer) {
           this.timer = setInterval(this.ontick, 100);
@@ -2401,6 +2402,7 @@ var StreamController = function (_EventHandler) {
       if (this.demuxer) {
         this.demuxer.destroy();
         this.demuxer = new _demuxer2.default(this.hls);
+        this.fragParsing = null;
       }
       if (this.levels && this.config.autoStartLoad) {
         this.hls.startLoad();
@@ -2527,6 +2529,7 @@ var StreamController = function (_EventHandler) {
       if (this.demuxer) {
         this.demuxer.destroy();
         this.demuxer = new _demuxer2.default(this.hls);
+        this.fragParsing = null;
       }
       if (this.config.autoStartLoad) {
         this.hls.startLoad();
