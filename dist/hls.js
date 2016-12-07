@@ -1845,10 +1845,10 @@ var StreamController = function (_EventHandler) {
         this.fragCurrent = null;
       }
       this.fragPrevious = null;
-      if (this.state === State.PARSING && this.demuxer && this.demuxer.w) {
+      if (this.state === State.PARSING && this.demuxer && this.config.enableWorker) {
         _logger.logger.warn('stopLoad in State.PARSING');
         this.fragParsing = frag;
-        this.demuxer.w.postMessage({ cmd: 'empty' });
+        this.demuxer.waitQueue();
       }
       this.state = State.STOPPED;
     }
@@ -4424,6 +4424,13 @@ var Demuxer = function () {
         default:
           this.hls.trigger(data.event, data.data);
           break;
+      }
+    }
+  }, {
+    key: 'waitQueue',
+    value: function waitQueue() {
+      if (this.demuxer.w) {
+        this.w.postMessage({ cmd: 'empty' });
       }
     }
   }]);
