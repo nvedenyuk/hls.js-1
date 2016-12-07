@@ -149,7 +149,7 @@ class Demuxer {
   }
 
   waitQueue() {
-    if (this.demuxer.w) {
+    if (this.w) {
       this.w.postMessage({cmd: 'empty'});
     }
   }
