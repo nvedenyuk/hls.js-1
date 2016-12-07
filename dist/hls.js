@@ -4429,7 +4429,7 @@ var Demuxer = function () {
   }, {
     key: 'waitQueue',
     value: function waitQueue() {
-      if (this.demuxer.w) {
+      if (this.w) {
         this.w.postMessage({ cmd: 'empty' });
       }
     }
