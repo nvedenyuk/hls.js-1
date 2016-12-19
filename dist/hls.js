@@ -959,6 +959,9 @@ var BufferController = function (_EventHandler) {
           sourceBuffer = this.sourceBuffer,
           segments = this.segments;
       if (sourceBuffer) {
+        if (!this.media) {
+          return;
+        }
         if (this.media.error) {
           segments = [];
           _logger.logger.error('trying to append although a media error occured, flush segment and abort');
