@@ -113,7 +113,8 @@ class BufferController extends EventHandler {
   }
 
   onFragParsed() {
-    if (!this.segments || !this.segments.length) {
+    var segments = this.segments || [];
+    if (!segments.length) {
       this.hls.trigger(Event.FRAG_APPENDED);
     } else {
       this.waitForAppended = true;
@@ -143,12 +144,12 @@ class BufferController extends EventHandler {
 
     this.updateMediaElementDuration();
 
-    if (this.waitForAppended && (!this.segments || !this.segments.length) && !this.isSbUpdating()) {
+    this.doAppending();
+
+    if (this.waitForAppended && !this.segments.length && !this.isSbUpdating()) {
       this.hls.trigger(Event.FRAG_APPENDED);
       this.waitForAppended = false;
     }
-
-    this.doAppending();
   }
 
   onSBUpdateError(event) {
@@ -324,11 +325,9 @@ class BufferController extends EventHandler {
         logger.error('trying to append although a media error occured, flush segment and abort');
         return;
       }
-      for (var type in sourceBuffer) {
-        if (sourceBuffer[type].updating) {
-          //logger.log('sb update in progress');
-          return;
-        }
+      if (this.isSbUpdating()) {
+        //logger.log('sb update in progress');
+        return;
       }
       if (segments.length) {
         var segment = segments.shift();
