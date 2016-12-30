@@ -42,7 +42,8 @@ class StreamController extends EventHandler {
       Event.FRAG_LOAD_EMERGENCY_ABORTED,
       Event.FRAG_PARSING_INIT_SEGMENT,
       Event.FRAG_PARSING_DATA,
-      Event.FRAG_PARSED,
+      //Event.FRAG_PARSED,
+      Event.FRAG_APPENDED,
       Event.ERROR,
       Event.BUFFER_APPENDED,
       Event.BUFFER_FLUSHED,
@@ -1054,11 +1055,15 @@ class StreamController extends EventHandler {
         frag.dropped = 1;
         frag.deltaPTS = this.config.maxSeekHole+1;
       }
-      this._checkAppendedParsed();
+      //this._checkAppendedParsed();
     }
   }
 
-  onBufferAppended() {
+  onFragAppended() {
+    this._checkAppendedParsed();
+  }
+
+  /*onBufferAppended() {
     switch (this.state) {
       case State.PARSING:
       case State.PARSED:
@@ -1068,11 +1073,11 @@ class StreamController extends EventHandler {
       default:
         break;
     }
-  }
+  }*/
 
   _checkAppendedParsed() {
     //trigger handler right now
-    if (this.state === State.PARSED && this.pendingAppending === 0)  {
+    if (this.state === State.PARSED /*&& this.pendingAppending === 0*/)  {
       var frag = this.fragCurrent, stats = this.stats;
       if (frag) {
         this.fragPrevious = frag;

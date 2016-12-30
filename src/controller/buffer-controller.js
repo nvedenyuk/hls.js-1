@@ -19,6 +19,7 @@ class BufferController extends EventHandler {
       Event.BUFFER_CODECS,
       Event.BUFFER_EOS,
       Event.BUFFER_FLUSHING,
+      Event.FRAG_PARSED,
       Event.LEVEL_UPDATED);
 
     // the value that we have set mediasource.duration to
@@ -85,6 +86,7 @@ class BufferController extends EventHandler {
       this.sourceBuffer = {};
     }
     this.onmso = this.onmse = this.onmsc = null;
+    this.waitForAppended = false;
     this.hls.trigger(Event.MEDIA_DETACHED);
   }
 
@@ -110,6 +112,24 @@ class BufferController extends EventHandler {
     logger.log('media source ended');
   }
 
+  onFragParsed() {
+    if (!this.segments || !this.segments.length) {
+      this.hls.trigger(Event.FRAG_APPENDED);
+    } else {
+      this.waitForAppended = true;
+    }
+  }
+
+  isSbUpdating() {
+    var sourceBuffer = this.sourceBuffer;
+    if (sourceBuffer) {
+      for (var type in sourceBuffer) {
+        if (sourceBuffer[type].updating) {
+          return true;
+        }
+      }
+    }
+  }
 
   onSBUpdateEnd() {
 
@@ -123,7 +143,10 @@ class BufferController extends EventHandler {
 
     this.updateMediaElementDuration();
 
-    this.hls.trigger(Event.BUFFER_APPENDED);
+    if (this.waitForAppended && (!this.segments || !this.segments.length) && !this.isSbUpdating()) {
+      this.hls.trigger(Event.FRAG_APPENDED);
+      this.waitForAppended = false;
+    }
 
     this.doAppending();
   }
