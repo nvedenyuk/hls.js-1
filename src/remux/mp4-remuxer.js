@@ -36,7 +36,6 @@ class MP4Remuxer {
   }
 
   remux(audioTrack,videoTrack,id3Track,textTrack,timeOffset, contiguous, accurate, data, flush,stats) {
-
     // dummy
     data = null;
 
@@ -53,17 +52,20 @@ class MP4Remuxer {
         let audioData = this.remuxAudio(audioTrack,timeOffset,contiguous,accurate, stats);
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
-          let audioTrackLength;
+          let audioTrackLength, audioStartPTS;
           if (audioData) {
-            audioTrackLength = audioData.endPTS - audioData.startPTS;
+            audioStartPTS = audioData.startPTS;
+            audioTrackLength = audioData.endPTS - audioStartPTS;
           }
-          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,flush,stats);
+          this.remuxVideo(videoTrack,timeOffset,contiguous,audioTrackLength,audioStartPTS,flush,stats);
+        } else if (!contiguous) {
+          this.nextAvcDts = undefined;
         }
       } else {
         let videoData;
         //logger.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
-          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,flush,stats);
+          videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,undefined,flush,stats);
         }
         if (videoData && audioTrack.codec) {
           this.remuxEmptyAudio(audioTrack, timeOffset, contiguous, videoData, stats);
@@ -152,7 +154,7 @@ class MP4Remuxer {
     }
   }
 
-  remuxVideo(track, timeOffset, contiguous, audioTrackLength, flush,stats) {
+  remuxVideo(track, timeOffset, contiguous, audioTrackLength, audioStartPTS, flush,stats) {
     var offset = 8,
         pesTimeScale = this.PES_TIMESCALE,
         pes2mp4ScaleFactor = this.PES2MP4SCALEFACTOR,
@@ -174,7 +176,6 @@ class MP4Remuxer {
     }
 
     contiguous |= (inputSamples.length && this.nextAvcDts && Math.abs(timeOffset-this.nextAvcDts/pesTimeScale) < 0.1);
-
 
     // PTS is coded on 33bits, and can loop from -2^32 to 2^32
     // PTSNormalize will make PTS/DTS value monotonic, we use last known DTS value as reference value
@@ -336,8 +337,11 @@ class MP4Remuxer {
       endDTS: this.nextAvcDts / pesTimeScale,
       type: 'video',
       flush: flush,
-      nb: outputSamples.length
+      nb: outputSamples.length,
+      dropped: stats.dropped
     };
+    // delta PTS between audio and video
+    data.deltaPTS = Math.abs(data.startPTS-audioStartPTS);
     this.observer.trigger(Event.FRAG_PARSING_DATA, data);
     return data;
   }

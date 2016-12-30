@@ -97,7 +97,6 @@ class StreamController extends EventHandler {
   }
 
   onDemuxerQueueEmpty() {
-    logger.warn('onDemuxerQueueEmpty');
     this.fragParsing = null;
   }
 
@@ -111,7 +110,6 @@ class StreamController extends EventHandler {
     }
     this.fragPrevious = null;
     if (this.state === State.PARSING && this.demuxer && this.config.enableWorker) {
-      logger.warn('stopLoad in State.PARSING');
       this.fragParsing = frag;
       this.demuxer.waitQueue();
     }
@@ -347,7 +345,8 @@ class StreamController extends EventHandler {
     let frag,
         foundFrag,
         maxFragLookUpTolerance = config.maxFragLookUpTolerance,
-        seekFlag = this.media && this.media.seeking || holaSeek;
+        media = this.media,
+        seekFlag = media && media.seeking || holaSeek;
 
     if (bufferEnd < end-(fragments[fragLen-1].PTSDTSshift||0)-0.05) {
       if (bufferEnd > end - maxFragLookUpTolerance || seekFlag) {
@@ -392,11 +391,23 @@ class StreamController extends EventHandler {
       frag = foundFrag;
       start = foundFrag.start;
       logger.log('find SN matching with pos:' +  bufferEnd + ':' + frag.sn);
-      logger.log('fragPrevious.sn:'+(fragPrevious ? fragPrevious.sn : 'NONE'));
       if (fragPrevious && frag.sn === fragPrevious.sn) {
         if (frag.sn < levelDetails.endSN) {
-          frag = fragments[frag.sn + 1 - levelDetails.startSN];
-          logger.log(`SN just loaded, load next one: ${frag.sn}`);
+          let deltaPTS = fragPrevious.deltaPTS,
+          curSNIdx = frag.sn - levelDetails.startSN;
+          // if there is a significant delta between audio and video, larger than max allowed hole,
+          // and if previous remuxed fragment did not start with a keyframe. (fragPrevious.dropped)
+          // let's try to load previous fragment again to get last keyframe
+          // then we will reload again current fragment (that way we should be able to fill the buffer hole ...)
+          if (this.loadedmetadata && deltaPTS && deltaPTS > config.maxSeekHole && fragPrevious.dropped && (!media || !BufferHelper.isBuffered(media, bufferEnd))) {
+            frag = fragments[curSNIdx-1];
+            logger.warn(`SN just loaded, with large PTS gap between audio and video, maybe frag is not starting with a keyframe ? load previous one to try to overcome this`);
+            // decrement previous frag load counter to avoid frag loop loading error when next fragment will get reloaded
+            fragPrevious.loadCounter--;
+          } else {
+            frag = fragments[curSNIdx+1];
+            logger.log(`SN just loaded, load next one: ${frag.sn}`);
+          }
         } else {
           // have we reached end of VOD playlist ?
           if (!levelDetails.live) {
@@ -454,8 +465,8 @@ class StreamController extends EventHandler {
       this.fragCurrent.loaded = false;
       this.startFragRequested = true;
       this.fragTimeOffset = frag.start;
-      hls.trigger(Event.FRAG_LOADING, {frag: frag});
       this.state = State.FRAG_LOADING;
+      hls.trigger(Event.FRAG_LOADING, {frag: frag});
       return true;
     }
   }
@@ -691,6 +702,7 @@ class StreamController extends EventHandler {
     this.media = null;
     this.loadedmetadata = false;
     this.stopLoad();
+    this.fragParsing = null;
   }
 
   onMediaSeeking() {
@@ -793,6 +805,14 @@ class StreamController extends EventHandler {
 
     if (newDetails.live) {
       var curDetails = curLevel.details;
+
+      if (this.levelLastLoaded !== undefined) {
+        let {start, end} = LevelHelper.probeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+        if (end >= start) {
+          curDetails = this.levels[this.levelLastLoaded].details;
+        }
+      }
+
       if (curDetails) {
         // we already have details for that level, merge them
         LevelHelper.mergeDetails(curDetails,newDetails);
@@ -871,7 +891,7 @@ class StreamController extends EventHandler {
           }
         }
       }
-      logger.log(`Demuxing ${sn} of [${details.startSN} ,${details.endSN}],level ${level}`);
+      logger.log(`Demuxing ${sn} of [${details.startSN} ,${details.endSN}],level ${level}, cc ${fragCurrent.cc}`);
       if (data.payload.first) {
         this.pendingAppending = 0;
       }
@@ -989,8 +1009,20 @@ class StreamController extends EventHandler {
     if (this.state === State.PARSING || this.fragParsing) {
       this.tparse2 = Date.now();
       var frag = this.fragCurrent||this.fragParsing;
-      logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
+      logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb},dropped:${data.dropped || 0},deltaPTS:${data.deltaPTS || 0}`);
       var hls = this.hls;
+
+      // has remuxer dropped video frames located before first keyframe ?
+      if(data.type === 'video') {
+        frag.dropped = data.dropped;
+        if (data.deltaPTS) {
+          if (isNaN(frag.deltaPTS)) {
+            frag.deltaPTS = data.deltaPTS;
+          } else {
+            frag.deltaPTS = Math.max(data.deltaPTS, frag.deltaPTS);
+          }
+        }
+      }
 
       [data.data1, data.data2].forEach(buffer => {
         if (buffer) {
@@ -1011,12 +1043,16 @@ class StreamController extends EventHandler {
 
   onFragParsed(data) {
     if (this.state === State.PARSING) {
-      var level = this.levels[this.fragCurrent.level];
+      var frag, level = this.levels[this.fragCurrent.level];
       this.stats.tparsed = performance.now();
       this.state = State.PARSED;
       if (data.startPTS !== undefined && data.endPTS !== undefined) {
         var drift = LevelHelper.updateFragPTS(level.details,this.fragCurrent.sn,data.startPTS,data.endPTS,data.PTSDTSshift,data.lastGopPTS);
         this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.fragCurrent.level, drift: drift});
+      } else if ((frag = this.fragCurrent)) {
+        // forse reload of prev fragment if video samples not found
+        frag.dropped = 1;
+        frag.deltaPTS = this.config.maxSeekHole+1;
       }
       this._checkAppendedParsed();
     }

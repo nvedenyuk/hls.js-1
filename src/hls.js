@@ -50,7 +50,7 @@ class Hls {
           debug: false,
           capLevelOnFPSDrop: false,
           capLevelToPlayerSize: false,
-          maxBufferLength: 30,
+          maxBufferLength: 40,
           maxBufferSize: 60 * 1000 * 1000,
           maxBufferHole: 0.5,
           maxSeekHole: 2,
@@ -64,16 +64,16 @@ class Hls {
           maxMaxBufferLength: 40,
           enableWorker: true,
           enableSoftwareAES: true,
-          manifestLoadingTimeOut: 10000,
-          manifestLoadingMaxRetry: 1,
+          manifestLoadingTimeOut: 20000,
+          manifestLoadingMaxRetry: 4,
           manifestLoadingRetryDelay: 1000,
-          levelLoadingTimeOut: 10000,
+          levelLoadingTimeOut: 20000,
           levelLoadingMaxRetry: 4,
           levelLoadingRetryDelay: 1000,
           fragLoadingTimeOut: 20000,
           fragLoadingMaxRetry: 6,
           fragLoadingRetryDelay: 1000,
-          fragLoadingLoopThreshold: 3,
+          fragLoadingLoopThreshold: 1000,
           startFragPrefetch : false,
           fpsDroppedMonitoringPeriod: 5000,
           fpsDroppedMonitoringThreshold: 0.2,
@@ -120,8 +120,6 @@ class Hls {
       throw new Error('Illegal hls.js config: "liveMaxLatencyDuration" must be gt "liveSyncDuration"');
     }
 
-    config.debug = true;
-    //config.enableWorker = false;
     enableLogs(config.debug);
     this.config = config;
     // observer setup
@@ -146,6 +144,8 @@ class Hls {
     this.streamController = new config.streamController(this);
     this.timelineController = new config.timelineController(this);
     this.keyLoader = new KeyLoader(this);
+    Hls.api.players.push(this);
+    Hls.api.emit(Event.PLAYER_CREATED, this);
   }
 
   destroy() {
@@ -164,6 +164,12 @@ class Hls {
     this.keyLoader.destroy();
     this.url = null;
     this.observer.removeAllListeners();
+    var globalId = Hls.api.players.indexOf(this);
+    if (globalId<0) {
+        return;
+    }
+    Hls.api.players.splice(globalId, 1);
+    Hls.api.emit(Event.PLAYER_DESTROYED, this);
   }
 
   attachMedia(media) {
@@ -310,5 +316,8 @@ class Hls {
     return this.levelController.manualLevel;
   }
 }
+
+Hls.api = new EventEmitter();
+Hls.api.players = [];
 
 export default Hls;
