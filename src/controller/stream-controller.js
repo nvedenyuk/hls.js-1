@@ -42,10 +42,10 @@ class StreamController extends EventHandler {
       Event.FRAG_LOAD_EMERGENCY_ABORTED,
       Event.FRAG_PARSING_INIT_SEGMENT,
       Event.FRAG_PARSING_DATA,
-      //Event.FRAG_PARSED,
+      Event.FRAG_PARSED,
       Event.FRAG_APPENDED,
       Event.ERROR,
-      Event.BUFFER_APPENDED,
+      //Event.BUFFER_APPENDED,
       Event.BUFFER_FLUSHED,
       Event.DEMUXER_QUEUE_EMPTY);
 
