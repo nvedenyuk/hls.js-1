@@ -132,6 +132,29 @@ class BufferController extends EventHandler {
     }
   }
 
+  dump(video) {
+    var str = '', b = video.buffered, len = b.length;
+    for (var i=0; i<len; i++) {
+      str += '['+b.start(i)+','+b.end(i)+']';
+    }
+    return str;
+  }
+
+  clear(video) {
+    var st = 0, end = video.currentTime - 60;
+    var b = video.buffered, len = b.length;
+    if (end<=0) {
+        return;
+    }
+    for (var i=0; i<len; i++) {
+      st = Math.min(st, b.start(i));
+    }
+    if (st && st<end) {
+      this.sourceBuffer.audio.remove(st, end);
+      this.sourceBuffer.video.remove(st, end);
+    }
+  }
+
   onSBUpdateEnd() {
 
     if (this._needsFlush) {
@@ -149,6 +172,14 @@ class BufferController extends EventHandler {
     if (this.waitForAppended && !this.segments.length && !this.isSbUpdating()) {
       this.hls.trigger(Event.FRAG_APPENDED);
       this.waitForAppended = false;
+    }
+    if (this.media) {
+        logger.log('video buffered: '+this.dump(this.media));
+        try {
+          this.clear(this.media);
+        } catch(err) {
+          logger.log(err);
+        }
     }
   }
 

@@ -784,6 +784,35 @@ var BufferController = function (_EventHandler) {
       }
     }
   }, {
+    key: 'dump',
+    value: function dump(video) {
+      var str = '',
+          b = video.buffered,
+          len = b.length;
+      for (var i = 0; i < len; i++) {
+        str += '[' + b.start(i) + ',' + b.end(i) + ']';
+      }
+      return str;
+    }
+  }, {
+    key: 'clear',
+    value: function clear(video) {
+      var st = 0,
+          end = video.currentTime - 60;
+      var b = video.buffered,
+          len = b.length;
+      if (end <= 0) {
+        return;
+      }
+      for (var i = 0; i < len; i++) {
+        st = Math.min(st, b.start(i));
+      }
+      if (st && st < end) {
+        this.sourceBuffer.audio.remove(st, end);
+        this.sourceBuffer.video.remove(st, end);
+      }
+    }
+  }, {
     key: 'onSBUpdateEnd',
     value: function onSBUpdateEnd() {
 
@@ -802,6 +831,14 @@ var BufferController = function (_EventHandler) {
       if (this.waitForAppended && !this.segments.length && !this.isSbUpdating()) {
         this.hls.trigger(_events2.default.FRAG_APPENDED);
         this.waitForAppended = false;
+      }
+      if (this.media) {
+        _logger.logger.log('video buffered: ' + this.dump(this.media));
+        try {
+          this.clear(this.media);
+        } catch (err) {
+          _logger.logger.log(err);
+        }
       }
     }
   }, {
@@ -6785,7 +6822,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-78';
+      return '0.6.1-79';
     }
   }, {
     key: 'Events',
