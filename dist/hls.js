@@ -797,14 +797,15 @@ var BufferController = function (_EventHandler) {
   }, {
     key: 'clear',
     value: function clear(video) {
-      var st = 0,
+      var st,
           end = video.currentTime - 60;
       var b = video.buffered,
           len = b.length;
       if (end <= 0) {
         return;
       }
-      for (var i = 0; i < len; i++) {
+      st = b.start(0);
+      for (var i = 1; i < len; i++) {
         st = Math.min(st, b.start(i));
       }
       if (st && st < end) {
@@ -6822,7 +6823,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-79';
+      return '0.6.1-80';
     }
   }, {
     key: 'Events',
