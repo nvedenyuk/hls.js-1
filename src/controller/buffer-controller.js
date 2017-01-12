@@ -141,9 +141,9 @@ class BufferController extends EventHandler {
   }
 
   clear(video) {
-    var st, end = video.currentTime - 60;
+    var st, sb = this.sourceBuffer, end = video.currentTime - 60;
     var b = video.buffered, len = b.length;
-    if (end<=0) {
+    if (end<=0 || (sb.audio && sb.audio.updating) || (sb.video && sb.video.updating)) {
         return;
     }
     st = b.start(0);
@@ -151,8 +151,12 @@ class BufferController extends EventHandler {
       st = Math.min(st, b.start(i));
     }
     if (st && st<end) {
-      this.sourceBuffer.audio.remove(st, end);
-      this.sourceBuffer.video.remove(st, end);
+      if (sb.audio) {
+        sb.audio.remove(st, end);
+      }
+      if (sb.video) {
+        sb.video.remove(st, end);
+      }
     }
   }
 

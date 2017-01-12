@@ -798,10 +798,11 @@ var BufferController = function (_EventHandler) {
     key: 'clear',
     value: function clear(video) {
       var st,
+          sb = this.sourceBuffer,
           end = video.currentTime - 60;
       var b = video.buffered,
           len = b.length;
-      if (end <= 0) {
+      if (end <= 0 || sb.audio && sb.audio.updating || sb.video && sb.video.updating) {
         return;
       }
       st = b.start(0);
@@ -809,8 +810,12 @@ var BufferController = function (_EventHandler) {
         st = Math.min(st, b.start(i));
       }
       if (st && st < end) {
-        this.sourceBuffer.audio.remove(st, end);
-        this.sourceBuffer.video.remove(st, end);
+        if (sb.audio) {
+          sb.audio.remove(st, end);
+        }
+        if (sb.video) {
+          sb.video.remove(st, end);
+        }
       }
     }
   }, {
@@ -6823,7 +6828,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-80';
+      return '0.6.1-81';
     }
   }, {
     key: 'Events',
