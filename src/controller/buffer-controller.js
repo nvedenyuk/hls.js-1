@@ -140,17 +140,18 @@ class BufferController extends EventHandler {
     return str;
   }
 
-  clear(video) {
-    var st, sb = this.sourceBuffer, end = video.currentTime - 60;
+  clear(video, keepSec) {
+    var st, sb = this.sourceBuffer, end = video.currentTime - keepSec;
     var b = video.buffered, len = b.length;
     if (end<=0 || (sb.audio && sb.audio.updating) || (sb.video && sb.video.updating)) {
-        return;
+      return;
     }
     st = b.start(0);
     for (var i=1; i<len; i++) {
       st = Math.min(st, b.start(i));
     }
     if (st && st<end) {
+      logger.log(`video buffered: ${this.dump(this.media)} removing: [${st},${end}]`);
       if (sb.audio) {
         sb.audio.remove(st, end);
       }
@@ -178,13 +179,13 @@ class BufferController extends EventHandler {
       this.hls.trigger(Event.FRAG_APPENDED);
       this.waitForAppended = false;
     }
-    if (this.media) {
-        logger.log('video buffered: '+this.dump(this.media));
-        try {
-          this.clear(this.media);
-        } catch(err) {
-          logger.log(err);
-        }
+    let keep;
+    if ((keep = this.hls.config.keepBuffered) && this.media) {
+      try {
+        this.clear(this.media, keep);
+      } catch(err) {
+        logger.log(err);
+      }
     }
   }
 
