@@ -6829,7 +6829,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-82';
+      return '0.6.1-83';
     }
   }, {
     key: 'Events',
@@ -10789,10 +10789,10 @@ var URLHelper = {
   // if relativeURL is an absolute URL it will be returned as is.
   buildAbsoluteURL: function buildAbsoluteURL(baseURL, relativeURL) {
     // remove any remaining space and CRLF
-    relativeURL = relativeURL.trim();
+    relativeURL = (' ' + relativeURL.trim()).substr(1);
     if (/^[a-z]+:/i.test(relativeURL)) {
       // complete url, not relative
-      return relativeURL;
+      return (' ' + relativeURL).substr(1);
     }
 
     var relativeURLQuery = null;
