@@ -96,8 +96,16 @@ class StreamController extends EventHandler {
     }
   }
 
+  resetDemuxer() {
+    var details = this.levels && this.levels[this.level].details;
+    if (this.demuxer && details && details.live) {
+      this.demuxer.clear('last_level');
+    }
+  }
+
   onDemuxerQueueEmpty() {
     this.fragParsing = null;
+    this.resetDemuxer();
   }
 
   stopLoad() {
@@ -109,9 +117,13 @@ class StreamController extends EventHandler {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
-    if (this.state === State.PARSING && this.demuxer && this.config.enableWorker) {
-      this.fragParsing = frag;
-      this.demuxer.waitQueue();
+    if (this.demuxer) {
+      if (this.state === State.PARSING && this.config.enableWorker) {
+        this.fragParsing = frag;
+        this.demuxer.waitQueue();
+      } else {
+        this.resetDemuxer();
+      }
     }
     this.state = State.STOPPED;
   }

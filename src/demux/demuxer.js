@@ -155,6 +155,11 @@ class Demuxer {
       this.w.postMessage({cmd: 'empty'});
     }
   }
+  clear(type) {
+    if (this.w) {
+      this.w.postMessage({cmd: 'clear', type: type});
+    }
+  }
 }
 
 export default Demuxer;

@@ -1912,9 +1912,18 @@ var StreamController = function (_EventHandler) {
       }
     }
   }, {
+    key: 'resetDemuxer',
+    value: function resetDemuxer() {
+      var details = this.levels && this.levels[this.level].details;
+      if (this.demuxer && details && details.live) {
+        this.demuxer.clear('last_level');
+      }
+    }
+  }, {
     key: 'onDemuxerQueueEmpty',
     value: function onDemuxerQueueEmpty() {
       this.fragParsing = null;
+      this.resetDemuxer();
     }
   }, {
     key: 'stopLoad',
@@ -1927,9 +1936,13 @@ var StreamController = function (_EventHandler) {
         this.fragCurrent = null;
       }
       this.fragPrevious = null;
-      if (this.state === State.PARSING && this.demuxer && this.config.enableWorker) {
-        this.fragParsing = frag;
-        this.demuxer.waitQueue();
+      if (this.demuxer) {
+        if (this.state === State.PARSING && this.config.enableWorker) {
+          this.fragParsing = frag;
+          this.demuxer.waitQueue();
+        } else {
+          this.resetDemuxer();
+        }
       }
       this.state = State.STOPPED;
     }
@@ -4247,6 +4260,16 @@ var DemuxerInline = function () {
       }
       demuxer.push(data, audioCodec, videoCodec, this.timeOffset, cc, level, sn, duration, accurate, first, final, lastSN);
     }
+  }, {
+    key: 'clear',
+    value: function clear(type) {
+      if (!this.demuxer) {
+        return;
+      }
+      if (type === 'last_level') {
+        this.demuxer.lastLevel = undefined;
+      }
+    }
   }]);
 
   return DemuxerInline;
@@ -4305,6 +4328,9 @@ var DemuxerWorker = function DemuxerWorker(self) {
         break;
       case 'empty':
         self.postMessage({ event: _events2.default.DEMUXER_QUEUE_EMPTY });
+        break;
+      case 'clear':
+        self.demuxer.clear(data.type);
         break;
       default:
         break;
@@ -4538,6 +4564,13 @@ var Demuxer = function () {
     value: function waitQueue() {
       if (this.w) {
         this.w.postMessage({ cmd: 'empty' });
+      }
+    }
+  }, {
+    key: 'clear',
+    value: function clear(type) {
+      if (this.w) {
+        this.w.postMessage({ cmd: 'clear', type: type });
       }
     }
   }]);
@@ -6841,7 +6874,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-86';
+      return '0.6.1-87';
     }
   }, {
     key: 'Events',

@@ -30,6 +30,9 @@ var DemuxerWorker = function (self) {
       case 'empty':
         self.postMessage({event: Event.DEMUXER_QUEUE_EMPTY});
         break;
+      case 'clear':
+        self.demuxer.clear(data.type);
+        break;
       default:
         break;
     }
