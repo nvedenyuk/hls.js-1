@@ -799,17 +799,18 @@ class StreamController extends EventHandler {
         newLevelId = data.level,
         curLevel = this.levels[newLevelId],
         duration = newDetails.totalduration,
-        sliding = 0;
+        sliding = 0,
+        lastDetails = this.levelLastLoaded && this.levels[this.levelLastLoaded].details;
 
     logger.log(`level ${newLevelId} loaded [${newDetails.startSN},${newDetails.endSN}],duration:${duration}`);
 
     if (newDetails.live) {
       var curDetails = curLevel.details;
 
-      if (this.levelLastLoaded !== undefined) {
-        let {start, end} = LevelHelper.probeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+      if (lastDetails) {
+        let {start, end} = LevelHelper.probeDetails(lastDetails, newDetails);
         if (end >= start) {
-          curDetails = this.levels[this.levelLastLoaded].details;
+          curDetails = lastDetails;
         }
       }
 
@@ -828,8 +829,8 @@ class StreamController extends EventHandler {
       }
     } else {
       newDetails.PTSKnown = false;
-      if (this.levelLastLoaded !== undefined && this.levels[this.levelLastLoaded].details) {
-        LevelHelper.mergeDetails(this.levels[this.levelLastLoaded].details, newDetails);
+      if (lastDetails) {
+        LevelHelper.mergeDetails(lastDetails, newDetails);
       }
     }
     // override level info
