@@ -1480,6 +1480,17 @@ var LevelController = function (_EventHandler) {
     key: 'startLoad',
     value: function startLoad() {
       this.canload = true;
+      var levels = this._levels;
+      // clean up live level details to force reload them, and reset load errors
+      if (levels) {
+        levels.forEach(function (level) {
+          level.loadError = 0;
+          var levelDetails = level.details;
+          if (levelDetails && levelDetails.live) {
+            level.details = undefined;
+          }
+        });
+      }
       // speed up live playlist refresh if timer exists
       if (this.timer) {
         this.tick();
@@ -6829,7 +6840,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-84';
+      return '0.6.1-85';
     }
   }, {
     key: 'Events',
