@@ -99,6 +99,7 @@
     this.accurate = accurate;
     this._duration = duration;
     this.contiguous = false;
+    this.firstSample = first;
     if (cc !== this.lastCC) {
       logger.log('discontinuity detected');
       this.insertDiscontinuity();
@@ -122,7 +123,7 @@
     }
     if (first) {
       this.lastContiguous = sn === this.lastSN+1;
-      this.fragStats = {keyFrames: 0, dropped: 0, segment: sn, level: level};
+      this.fragStats = {keyFrames: 0, dropped: 0, segment: sn, level: level, notFirstKeyframe: 0};
       this.remuxAVCCount = this.remuxAACCount = 0;
       this.fragStartPts = this.fragStartDts = this.gopStartDTS = undefined;
       this.fragStartAVCPos = this._avcTrack.samples.length;
@@ -259,10 +260,6 @@
     if (this.gopStartDTS === undefined && this._avcTrack.samples.length) {
       this.gopStartDTS = this._avcTrack.samples[0].dts;
     }
-    /*if (first && !accurate) {
-      this.timeOffset = this.fragStartPts / this.remuxer.PES_TIMESCALE;
-      this.nextAvcDts = this.contiguous ? this.remuxer.nextAvcDts : this.timeOffset*this.remuxer.PES_TIMESCALE;
-    }*/
     this.remux(null, final, final && sn === lastSN, true);
     if (final)
     {
@@ -304,11 +301,11 @@
   remux(data, final, flush, lastSegment) {
     var _saveAVCSamples = [], _saveAACSamples = [], _saveID3Samples = [],
         _saveTextSamples = [], maxk, samples = this._avcTrack.samples,
-        startPTS, endPTS, gopEndDTS;
+        startPTS, endPTS, gopEndDTS, initDTS;
     let timescale = this.remuxer.PES_TIMESCALE;
     if (samples.length && final) {
       this.fragStats.PTSDTSshift = ((this.fragStartPts === undefined ? samples[0].pts : this.fragStartPts)-(this.fragStartDts === undefined ? samples[0].dts : this.fragStartDts))/timescale;
-      let initDTS = this.remuxer._initDTS === undefined ?
+      initDTS = this.remuxer._initDTS === undefined ?
         samples[0].dts -timescale * this.timeOffset : this.remuxer._initDTS;
       let startDTS = Math.max(this.remuxer._PTSNormalize((this.gopStartDTS === undefined ? samples[0].dts : this.gopStartDTS) - initDTS,this.nextAvcDts),0);
       let sample = samples[samples.length-1];
@@ -341,6 +338,9 @@
       // save samples and break by GOP
       for (maxk=samples.length-1; maxk>0; maxk--) {
         if (samples[maxk].key) {
+          if (maxk && (samples[maxk - 1].dts - initDTS) / timescale < startPTS) {
+            maxk = 0;
+          }
           break;
         }
       }
@@ -429,7 +429,7 @@
         default:
           this.fragStats.unknownStream = (this.fragStats.unknownStream|0)+1;
           logger.log('unkown stream type:'  + data[offset]);
-        break;
+          break;
       }
       // move to the next table entry
       // skip past the elementary stream descriptors, if present
@@ -459,7 +459,7 @@
     pesPrefix = (frag[0] << 16) + (frag[1] << 8) + frag[2];
     if (pesPrefix === 1) {
       pesLen = (frag[4] << 8) + frag[5];
-      if (pesLen && pesLen !== stream.size - 6) {
+      if (pesLen && pesLen > stream.size - 6) {
         return null;
       }
       pesFlags = frag[7];
@@ -487,6 +487,10 @@
           if (pesDts > 4294967295) {
             // decrement 2^33
             pesDts -= 8589934592;
+          }
+          if (pesPts - pesDts > 60*90000) {
+            logger.warn(`${Math.round((pesPts - pesDts)/90000)}s delta between PTS and DTS, align them`);
+            pesPts = pesDts;
           }
         } else {
           pesDts = pesPts;
@@ -562,6 +566,19 @@
           push = true;
           if(debug) {
             debugString += 'NDR ';
+          }
+          // retrieve slice type by parsing beginning of NAL unit (follow H264 spec, slice_header definition) to detect keyframe embedded in NDR
+          let data = unit.data;
+          if (data.length > 1) {
+            let sliceType = new ExpGolomb(data).readSliceType();
+            // 2 : I slice, 4 : SI slice, 7 : I slice, 9: SI slice
+            // SI slice : A slice that is coded using intra prediction only and using quantisation of the prediction samples.
+            // An SI slice can be coded such that its decoded samples can be constructed identically to an SP slice.
+            // I slice: A slice that is not an SI slice that is decoded using intra prediction only.
+            //if (sliceType === 2 || sliceType === 7) {
+            if (sliceType === 2 || sliceType === 4 || sliceType === 7 || sliceType === 9) {
+              key = true;
+            }
           }
           break;
         //IDR
@@ -694,6 +711,10 @@
             debugString += 'AUD ';
           }
           break;
+        // Filler Data
+        case 12:
+          push = false;
+          break;
         default:
           push = false;
           debugString += 'unknown NAL ' + unit.type + ' ';
@@ -727,6 +748,10 @@
       else {
         this.fragStats.dropped++;
       }
+      if (this.firstSample && !key) {
+        this.fragStats.notFirstKeyframe++;
+      }
+      this.firstSample = false;
     }
   }
 
@@ -904,7 +929,7 @@
       }
     }
     config = ADTS.getAudioConfig(this.observer,data, offset, audioCodec);
-    if (track.audiosamplerate !== config.audiosamplerate || track.codec !== config.codec) {
+    if (track.audiosamplerate !== config.samplerate || track.codec !== config.codec) {
       track.config = config.config;
       track.audiosamplerate = config.samplerate;
       track.channelCount = config.channelCount;

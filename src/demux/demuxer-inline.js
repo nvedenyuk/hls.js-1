@@ -58,15 +58,6 @@ class DemuxerInline {
     }
     demuxer.push(data,audioCodec,videoCodec,this.timeOffset,cc,level,sn,duration,accurate,first,final,lastSN);
   }
-
-  clear(type) {
-    if (!this.demuxer) {
-      return;
-    }
-    if (type === 'last_level') {
-      this.demuxer.lastLevel = undefined;
-    }
-  }
 }
 
 export default DemuxerInline;

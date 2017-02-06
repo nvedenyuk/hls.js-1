@@ -19,7 +19,7 @@ class BufferController extends EventHandler {
       Event.BUFFER_CODECS,
       Event.BUFFER_EOS,
       Event.BUFFER_FLUSHING,
-      Event.FRAG_PARSED,
+      Event.FRAG_APPENDING,
       Event.LEVEL_UPDATED);
 
     // the value that we have set mediasource.duration to
@@ -27,7 +27,7 @@ class BufferController extends EventHandler {
     this._msDuration = null;
     // the value that we want to set mediaSource.duration to
     this._levelDuration = null;
-   
+
     // Source Buffer listeners
     this.onsbue = this.onSBUpdateEnd.bind(this);
     this.onsbe  = this.onSBUpdateError.bind(this);
@@ -41,7 +41,7 @@ class BufferController extends EventHandler {
     let media = this.media = data.media;
     if (media) {
       // setup the media source
-      var ms = this.mediaSource = new MediaSource();
+      let ms = this.mediaSource = new MediaSource();
       //Media Source listeners
       this.onmso = this.onMediaSourceOpen.bind(this);
       this.onmse = this.onMediaSourceEnded.bind(this);
@@ -50,7 +50,9 @@ class BufferController extends EventHandler {
       ms.addEventListener('sourceended', this.onmse);
       ms.addEventListener('sourceclose', this.onmsc);
       // link video and media Source
-      media.src = URL.createObjectURL(ms);
+      let url = URL.createObjectURL(ms);
+      logger.log(`set object url ${url}`);
+      media.src = url;
     }
   }
 
@@ -84,6 +86,9 @@ class BufferController extends EventHandler {
       this.media = null;
       this.pendingTracks = null;
       this.sourceBuffer = {};
+      this.flushRange = [];
+      this.segments = [];
+      this.appended = 0;
     }
     this.onmso = this.onmse = this.onmsc = null;
     this.waitForAppended = false;
@@ -112,7 +117,7 @@ class BufferController extends EventHandler {
     logger.log('media source ended');
   }
 
-  onFragParsed() {
+  onFragAppending() {
     var segments = this.segments || [];
     if (!segments.length) {
       this.hls.trigger(Event.FRAG_APPENDED);
@@ -190,7 +195,10 @@ class BufferController extends EventHandler {
   }
 
   onSBUpdateError(event) {
-    logger.error(`sourceBuffer error:${event}`);
+    let err = this.lastSegment ? `last segment type:${this.lastSegment.type},size:${this.lastSegment.data.length})` : '';
+    logger.error(`onSBUpdateError: sourceBuffer error:${event} ${err}`);
+    this.lastSegment = undefined;
+    this.printDump();
     // according to http://www.w3.org/TR/media-source/#sourcebuffer-append-error
     // this error might not always be fatal (it is fatal if decode error is set, in that case
     // it will be followed by a mediaElement error ...)
@@ -199,7 +207,8 @@ class BufferController extends EventHandler {
   }
 
   onBufferReset() {
-    var sourceBuffer = this.sourceBuffer;
+    var sourceBuffer = this.sourceBuffer, segments = this.segments || [];
+    logger.log(`onBufferReset: pending segments:${segments.length}`);
     for(var type in sourceBuffer) {
       var sb = sourceBuffer[type];
       try {
@@ -212,6 +221,7 @@ class BufferController extends EventHandler {
     this.sourceBuffer = {};
     this.flushRange = [];
     this.appended = 0;
+    this.dumpSegments = undefined;
   }
 
   onBufferCodecs(tracks) {
@@ -254,7 +264,10 @@ class BufferController extends EventHandler {
   }
 
   onBufferAppendFail(data) {
-    logger.error(`sourceBuffer error:${data.event}`);
+    let err = this.lastSegment ? `last segment type:${this.lastSegment.type},size:${this.lastSegment.data.length})` : '';
+    logger.error(`onBufferAppendFail:sourceBuffer error:${data.event} ${err}`);
+    this.lastSegment = undefined;
+    this.printDump();
     // according to http://www.w3.org/TR/media-source/#sourcebuffer-append-error
     // this error might not always be fatal (it is fatal if decode error is set, in that case
     // it will be followed by a mediaElement error ...)
@@ -351,14 +364,40 @@ class BufferController extends EventHandler {
     }
   }
 
+  dumpSegment(segment) {
+    let i, len = segment.data.length;
+    let info = `queue:${this.segments.length}type:${segment.type},size:${len},buf:[`;
+    for (i = 0, len = Math.min(len, 10); i<len; i++) {
+      if (i) {
+        info += ',';
+      }
+      info += segment.data[i];
+    }
+    info += '..]';
+    if (!this.dumpSegments) {
+      this.dumpSegments = [info];
+    } else {
+      this.dumpSegments.push(info);
+    }
+    if (this.dumpSegments.length>10) {
+      this.dumpSegments.shift();
+    }
+  }
+
+  printDump() {
+    if (this.dumpSegments && this.dumpSegments.length) {
+      logger.error(this.dumpSegments.join('|'));
+    }
+  }
+
   doAppending() {
     var hls = this.hls, sourceBuffer = this.sourceBuffer, segments = this.segments;
-    if (sourceBuffer) {
+    if (sourceBuffer && Object.keys(sourceBuffer).length) {
       if (!this.media) {
         return;
       }
       if (this.media.error) {
-        segments = [];
+        this.segments = [];
         logger.error('trying to append although a media error occured, flush segment and abort');
         return;
       }
@@ -368,9 +407,11 @@ class BufferController extends EventHandler {
       }
       if (segments.length) {
         var segment = segments.shift();
+        this.dumpSegment(segment);
         try {
           //logger.log(`appending ${segment.type} SB, size:${segment.data.length});
           if(sourceBuffer[segment.type]) {
+            this.lastSegment = segment;
             sourceBuffer[segment.type].appendBuffer(segment.data);
             this.appendError = 0;
             this.appended++;
@@ -399,7 +440,7 @@ class BufferController extends EventHandler {
             */
             if (this.appendError > hls.config.appendErrorMaxRetry) {
               logger.log(`fail ${hls.config.appendErrorMaxRetry} times to append segment in sourceBuffer`);
-              segments = [];
+              this.segments = [];
               event.fatal = true;
               hls.trigger(Event.ERROR, event);
               return;
@@ -410,7 +451,7 @@ class BufferController extends EventHandler {
           } else {
             // QuotaExceededError: http://www.w3.org/TR/html5/infrastructure.html#quotaexceedederror
             // let's stop appending any segments, and report BUFFER_FULL_ERROR error
-            segments = [];
+            this.segments = [];
             event.details = ErrorDetails.BUFFER_FULL_ERROR;
             hls.trigger(Event.ERROR,event);
           }
