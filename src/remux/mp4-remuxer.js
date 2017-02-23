@@ -543,7 +543,7 @@ class MP4Remuxer {
     if (nbSamples) {
       // next aac sample PTS should be equal to last sample PTS + duration
       this.nextAacPts = ptsnorm + pes2mp4ScaleFactor * lastSampleDuration;
-      console.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
+      //console.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
       track.len = 0;
       track.samples = samples;
       moof = MP4.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);

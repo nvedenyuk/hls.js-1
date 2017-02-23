@@ -6988,7 +6988,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-92';
+      return '0.6.1-93';
     }
   }, {
     key: 'Events',
@@ -9092,7 +9092,7 @@ var MP4Remuxer = function () {
       if (nbSamples) {
         // next aac sample PTS should be equal to last sample PTS + duration
         this.nextAacPts = ptsnorm + pes2mp4ScaleFactor * lastSampleDuration;
-        console.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
+        //console.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
         track.len = 0;
         track.samples = samples;
         moof = _mp4Generator2.default.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
