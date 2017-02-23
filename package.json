@@ -1,6 +1,6 @@
 {
   "name": "hls.js",
-  "version": "0.6.1-96",
+  "version": "0.6.1-97",
   "license": "Apache-2.0",
   "description": "Media Source Extension - HLS library, by/for Dailymotion",
   "homepage": "https://github.com/dailymotion/hls.js",
@@ -35,7 +35,7 @@
     "babel": "babel src --out-dir lib"
   },
   "dependencies": {
-    "webworkify": "^1.3.0"
+    "webworkify": "^1.4.0"
   },
   "devDependencies": {
     "arraybuffer-equal": "^1.0.4",

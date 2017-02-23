@@ -4407,6 +4407,9 @@ var DemuxerWorker = function DemuxerWorker(self) {
 
     observer.removeListener.apply(observer, [event].concat(data));
   };
+  var forwardMessage = function forwardMessage(ev, data) {
+    self.postMessage({ event: ev, data: data });
+  };
   self.addEventListener('message', function (ev) {
     var data = ev.data;
     //console.log('demuxer cmd:' + data.cmd);
@@ -4418,6 +4421,8 @@ var DemuxerWorker = function DemuxerWorker(self) {
         } catch (err) {
           console.warn('demuxerWorker: unable to enable logs');
         }
+        // signal end of worker init
+        forwardMessage('init', null);
         break;
       case 'demux':
         self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN);
@@ -4510,14 +4515,19 @@ var Demuxer = function () {
     };
     if (hls.config.enableWorker && typeof Worker !== 'undefined') {
       _logger.logger.log('demuxing in webworker');
+      var w = void 0;
       try {
         var work = _dereq_('webworkify');
-        this.w = work(_demuxerWorker2.default);
+        w = this.w = work(_demuxerWorker2.default);
         this.onwmsg = this.onWorkerMessage.bind(this);
         this.w.addEventListener('message', this.onwmsg);
         this.w.postMessage({ cmd: 'init', typeSupported: typeSupported, config: JSON.stringify(hls.config) });
       } catch (err) {
         _logger.logger.error('error while initializing DemuxerWorker, fallback on DemuxerInline');
+        if (w) {
+          // revoke the Object URL that was used to create demuxer worker, so as not to leak it
+          URL.revokeObjectURL(w.objectURL);
+        }
         this.demuxer = new _demuxerInline2.default(hls, typeSupported);
       }
     } else {
@@ -4615,6 +4625,10 @@ var Demuxer = function () {
     value: function onWorkerMessage(ev) {
       var data = ev.data;
       switch (data.event) {
+        case 'init':
+          // revoke the Object URL that was used to create demuxer worker, so as not to leak it
+          URL.revokeObjectURL(this.w.objectURL);
+          break;
         case _events2.default.FRAG_PARSING_INIT_SEGMENT:
           var obj = {};
           obj.tracks = data.tracks;
@@ -4646,6 +4660,7 @@ var Demuxer = function () {
           });
           break;
         default:
+          console.log('onWorkerMessage: ' + data.event);
           this.hls.trigger(data.event, data.data);
           break;
       }
@@ -6991,7 +7006,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-96';
+      return '0.6.1-97';
     }
   }, {
     key: 'Events',
