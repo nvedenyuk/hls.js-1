@@ -23,7 +23,7 @@ var DemuxerWorker = function (self) {
   };
   self.addEventListener('message', function (ev) {
     var data = ev.data;
-    //console.log('demuxer cmd:' + data.cmd);
+    console.log('demuxer cmd:' + data.cmd);
     switch (data.cmd) {
       case 'init':
         self.demuxer = new DemuxerInline(observer, data.typeSupported, JSON.parse(data.config));

@@ -4412,7 +4412,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
   };
   self.addEventListener('message', function (ev) {
     var data = ev.data;
-    //console.log('demuxer cmd:' + data.cmd);
+    console.log('demuxer cmd:' + data.cmd);
     switch (data.cmd) {
       case 'init':
         self.demuxer = new _demuxerInline2.default(observer, data.typeSupported, JSON.parse(data.config));
@@ -7006,7 +7006,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-97';
+      return '0.6.1-98';
     }
   }, {
     key: 'Events',
