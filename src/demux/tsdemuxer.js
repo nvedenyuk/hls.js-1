@@ -373,6 +373,7 @@
     //notify end of parsing
     if (final) {
       let lastGopPTS = Math.min(this.remuxer.nextAvcDts, this.remuxer.nextAacPts)/timescale;
+      console.log('trigger FRAG_PARSED');
       this.observer.trigger(Event.FRAG_PARSED, {startPTS: startPTS, endPTS: endPTS, PTSDTSshift: this.fragStats.PTSDTSshift, lastGopPTS: lastGopPTS});
     }
   }

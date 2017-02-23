@@ -5602,6 +5602,7 @@ var TSDemuxer = function () {
       //notify end of parsing
       if (final) {
         var lastGopPTS = Math.min(this.remuxer.nextAvcDts, this.remuxer.nextAacPts) / timescale;
+        console.log('trigger FRAG_PARSED');
         this.observer.trigger(_events2.default.FRAG_PARSED, { startPTS: startPTS, endPTS: endPTS, PTSDTSshift: this.fragStats.PTSDTSshift, lastGopPTS: lastGopPTS });
       }
     }
@@ -6988,7 +6989,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-93';
+      return '0.6.1-94';
     }
   }, {
     key: 'Events',
@@ -8602,11 +8603,11 @@ var MP4Remuxer = function () {
           }
         }
       }
-      console.log('nb ID3 samples:' + audioTrack.samples.length);
+      console.log('nb ID3 samples:' + id3Track.samples.length);
       if (id3Track.samples.length) {
         this.remuxID3(id3Track, timeOffset);
       }
-      console.log('nb ID3 samples:' + audioTrack.samples.length);
+      console.log('nb text samples:' + textTrack.samples.length);
       if (textTrack.samples.length) {
         this.remuxText(textTrack, timeOffset);
       }
@@ -8882,6 +8883,7 @@ var MP4Remuxer = function () {
       };
       // delta PTS between audio and video
       data.deltaPTS = Math.abs(data.startPTS - audioStartPTS);
+      console.log('remuxVideo - FRAG_PARSING_DATA');
       this.observer.trigger(_events2.default.FRAG_PARSING_DATA, data);
       return data;
     }
@@ -9107,6 +9109,7 @@ var MP4Remuxer = function () {
           type: 'audio',
           nb: nbSamples
         };
+        console.log('remuxAudio - FRAG_PARSING_DATA');
         this.observer.trigger(_events2.default.FRAG_PARSING_DATA, audioData);
         return audioData;
       }

@@ -72,11 +72,11 @@ class MP4Remuxer {
         }
       }
     }
-    console.log('nb ID3 samples:' + audioTrack.samples.length);
+    console.log('nb ID3 samples:' + id3Track.samples.length);
     if (id3Track.samples.length) {
       this.remuxID3(id3Track,timeOffset);
     }
-    console.log('nb ID3 samples:' + audioTrack.samples.length);
+    console.log('nb text samples:' + textTrack.samples.length);
     if (textTrack.samples.length) {
       this.remuxText(textTrack,timeOffset);
     }
@@ -342,6 +342,7 @@ class MP4Remuxer {
     };
     // delta PTS between audio and video
     data.deltaPTS = Math.abs(data.startPTS-audioStartPTS);
+    console.log('remuxVideo - FRAG_PARSING_DATA');
     this.observer.trigger(Event.FRAG_PARSING_DATA, data);
     return data;
   }
@@ -558,6 +559,7 @@ class MP4Remuxer {
         type: 'audio',
         nb: nbSamples
       };
+      console.log('remuxAudio - FRAG_PARSING_DATA');
       this.observer.trigger(Event.FRAG_PARSING_DATA, audioData);
       return audioData;
     }
