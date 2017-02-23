@@ -20,6 +20,7 @@ class Demuxer {
           var work = require('webworkify');
           w = this.w = work(DemuxerWorker);
           this.onwmsg = this.onWorkerMessage.bind(this);
+          console.log('---> demuxer ctor: addEventListener');
           this.w.addEventListener('message', this.onwmsg);
           this.w.postMessage({cmd: 'init', typeSupported : typeSupported, config: JSON.stringify(hls.config)});
         } catch(err) {
@@ -38,6 +39,7 @@ class Demuxer {
 
   destroy() {
     if (this.w) {
+      console.log('---> demuxer destroy: removeEventListener');
       this.w.removeEventListener('message', this.onwmsg);
       this.w.terminate();
       this.w = null;

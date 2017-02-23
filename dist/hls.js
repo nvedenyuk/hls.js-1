@@ -4520,6 +4520,7 @@ var Demuxer = function () {
         var work = _dereq_('webworkify');
         w = this.w = work(_demuxerWorker2.default);
         this.onwmsg = this.onWorkerMessage.bind(this);
+        console.log('---> demuxer ctor: addEventListener');
         this.w.addEventListener('message', this.onwmsg);
         this.w.postMessage({ cmd: 'init', typeSupported: typeSupported, config: JSON.stringify(hls.config) });
       } catch (err) {
@@ -4540,6 +4541,7 @@ var Demuxer = function () {
     key: 'destroy',
     value: function destroy() {
       if (this.w) {
+        console.log('---> demuxer destroy: removeEventListener');
         this.w.removeEventListener('message', this.onwmsg);
         this.w.terminate();
         this.w = null;
@@ -7006,7 +7008,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-100';
+      return '0.6.1-101';
     }
   }, {
     key: 'Events',
