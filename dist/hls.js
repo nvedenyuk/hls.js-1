@@ -4376,11 +4376,18 @@ var _events = _dereq_('../events');
 
 var _events2 = _interopRequireDefault(_events);
 
+var _logger = _dereq_('../utils/logger');
+
 var _events3 = _dereq_('events');
 
 var _events4 = _interopRequireDefault(_events3);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* demuxer web worker.
+ *  - listen to worker message, and trigger DemuxerInline upon reception of Fragments.
+ *  - provides MP4 Boxes back to main thread using [transferable objects](https://developers.google.com/web/updates/2011/12/Transferable-Objects-Lightning-Fast) in order to minimize message passing overhead.
+ */
 
 var DemuxerWorker = function DemuxerWorker(self) {
   // observer setup
@@ -4406,6 +4413,11 @@ var DemuxerWorker = function DemuxerWorker(self) {
     switch (data.cmd) {
       case 'init':
         self.demuxer = new _demuxerInline2.default(observer, data.typeSupported, JSON.parse(data.config));
+        try {
+          (0, _logger.enableLogs)(true);
+        } catch (err) {
+          console.warn('demuxerWorker: unable to enable logs');
+        }
         break;
       case 'demux':
         self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN);
@@ -4450,14 +4462,11 @@ var DemuxerWorker = function DemuxerWorker(self) {
     var objData = { event: event, samples: data.samples };
     self.postMessage(objData);
   });
-}; /* demuxer web worker.
-    *  - listen to worker message, and trigger DemuxerInline upon reception of Fragments.
-    *  - provides MP4 Boxes back to main thread using [transferable objects](https://developers.google.com/web/updates/2011/12/Transferable-Objects-Lightning-Fast) in order to minimize message passing overhead.
-    */
+};
 
 exports.default = DemuxerWorker;
 
-},{"../demux/demuxer-inline":15,"../events":23,"events":1}],17:[function(_dereq_,module,exports){
+},{"../demux/demuxer-inline":15,"../events":23,"../utils/logger":39,"events":1}],17:[function(_dereq_,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6979,7 +6988,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-89';
+      return '0.6.1-90';
     }
   }, {
     key: 'Events',

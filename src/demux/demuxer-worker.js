@@ -5,6 +5,7 @@
 
  import DemuxerInline from '../demux/demuxer-inline';
  import Event from '../events';
+ import {enableLogs} from '../utils/logger';
  import EventEmitter from 'events';
 
 var DemuxerWorker = function (self) {
@@ -23,6 +24,11 @@ var DemuxerWorker = function (self) {
     switch (data.cmd) {
       case 'init':
         self.demuxer = new DemuxerInline(observer, data.typeSupported, JSON.parse(data.config));
+        try {
+          enableLogs(true);
+        } catch(err) {
+          console.warn('demuxerWorker: unable to enable logs');
+        }
         break;
       case 'demux':
         self.demuxer.push(new Uint8Array(data.data), data.audioCodec, data.videoCodec, data.timeOffset, data.cc, data.level, data.sn, data.duration, data.accurate, data.first, data.final, data.lastSN);
