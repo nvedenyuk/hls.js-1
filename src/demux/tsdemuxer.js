@@ -101,12 +101,12 @@
     this.contiguous = false;
     this.firstSample = first;
     if (cc !== this.lastCC) {
-      logger.log('discontinuity detected');
+      console.log('discontinuity detected');
       this.insertDiscontinuity();
       this.lastCC = cc;
     }
     if (level !== this.lastLevel) {
-      logger.log('level switch detected');
+      console.log('level switch detected');
       this.switchLevel();
       this.lastLevel = level;
     }
@@ -219,7 +219,7 @@
             aacId = this._aacTrack.id;
             id3Id = this._id3Track.id;
             if (unknownPIDs && !this.pmtParsed) {
-              logger.log('reparse from beginning');
+              console.log('reparse from beginning');
               unknownPIDs = false;
               // we set it to -188, the += 188 in the for loop will reset start to 0
               start = -188;
@@ -386,7 +386,7 @@
   _parsePAT(data, offset) {
     // skip the PSI header and parse the first PMT entry
     this._pmtId  = (data[offset + 10] & 0x1F) << 8 | data[offset + 11];
-    //logger.log('PMT PID:'  + this._pmtId);
+    logger.log('PMT PID:'  + this._pmtId);
   }
 
   _parsePMT(data, offset) {
@@ -424,11 +424,11 @@
           break;
         case 0x24:
           this.fragStats.HEVC = (this.fragStats.HEVC|0)+1;
-          logger.warn('HEVC stream type found, not supported for now');
+          console.warn('HEVC stream type found, not supported for now');
           break;
         default:
           this.fragStats.unknownStream = (this.fragStats.unknownStream|0)+1;
-          logger.log('unkown stream type:'  + data[offset]);
+          console.log('unkown stream type:'  + data[offset]);
           break;
       }
       // move to the next table entry
@@ -489,7 +489,7 @@
             pesDts -= 8589934592;
           }
           if (pesPts - pesDts > 60*90000) {
-            logger.warn(`${Math.round((pesPts - pesDts)/90000)}s delta between PTS and DTS, align them`);
+            console.warn(`${Math.round((pesPts - pesDts)/90000)}s delta between PTS and DTS, align them`);
             pesPts = pesDts;
           }
         } else {
@@ -726,7 +726,7 @@
       }
     });
     if(debug || debugString.length) {
-      logger.log(debugString);
+      console.log(debugString);
     }
     //build sample from PES
     // Annex B to MP4 conversion to be done
@@ -740,7 +740,7 @@
         if (key) {
           this.fragStats.keyFrames++;
         }
-        // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
+        console.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
         samples.push(avcSample);
         track.len += length;
         track.nbNalu += units2.length;
@@ -779,7 +779,7 @@
   _parseAVCNALu(array) {
     var i = 0, len = array.byteLength, value, overflow, state = 0;
     var units = [], unit, unitType, lastUnitStart, lastUnitType;
-    //logger.log('PES:' + Hex.hexDump(array));
+    //console.log('PES:' + Hex.hexDump(array));
     while (i < len) {
       value = array[i++];
       // finding 3 or 4-byte start codes (00 00 01 OR 00 00 00 01)
@@ -802,10 +802,10 @@
             state = 3;
           } else if (value === 1 && i < len) {
             unitType = array[i] & 0x1f;
-            //logger.log('find NALU @ offset:' + i + ',type:' + unitType);
+            console.log('find NALU @ offset:' + i + ',type:' + unitType);
             if (lastUnitStart) {
               unit = {data: array.subarray(lastUnitStart, i - state - 1), type: lastUnitType};
-              //logger.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
+              console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
               units.push(unit);
             } else {
               // If NAL units are not starting right at the beginning of the PES packet, push preceding data into previous NAL unit.
@@ -813,7 +813,7 @@
               if (overflow) {
                 let track = this._avcTrack,
                     samples = track.samples;
-                //logger.log('first NALU found with overflow:' + overflow);
+                console.log('first NALU found with overflow:' + overflow);
                 if (samples.length) {
                   let lastavcSample = samples[samples.length - 1],
                       lastUnits = lastavcSample.units.units,
@@ -841,7 +841,7 @@
     if (lastUnitStart) {
       unit = {data: array.subarray(lastUnitStart, len), type: lastUnitType};
       units.push(unit);
-      //logger.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
+      console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
     }
     return units;
   }
@@ -935,7 +935,7 @@
       track.channelCount = config.channelCount;
       track.codec = config.codec;
       track.duration = duration;
-      logger.log(`parsed codec:${track.codec},rate:${config.samplerate},nb channel:${config.channelCount}`);
+      console.log(`parsed codec:${track.codec},rate:${config.samplerate},nb channel:${config.channelCount}`);
     }
     frameIndex = 0;
     frameDuration = 1024 * 90000 / track.audiosamplerate;
@@ -945,7 +945,7 @@
     if(aacOverFlow && lastAacPTS) {
       var newPTS = lastAacPTS+frameDuration;
       if(Math.abs(newPTS-pts) > 1) {
-        logger.log(`AAC: align PTS for overlapping frames by ${Math.round((newPTS-pts)/90)}`);
+        console.log(`AAC: align PTS for overlapping frames by ${Math.round((newPTS-pts)/90)}`);
         pts=newPTS;
       }
     }
@@ -962,7 +962,7 @@
 
       if ((frameLength > 0) && ((offset + headerLength + frameLength) <= len)) {
         stamp = pts + frameIndex * frameDuration;
-        //logger.log(`AAC frame, offset/length/total/pts:${offset+headerLength}/${frameLength}/${data.byteLength}/${(stamp/90).toFixed(0)}`);
+        console.log(`AAC frame, offset/length/total/pts:${offset+headerLength}/${frameLength}/${data.byteLength}/${(stamp/90).toFixed(0)}`);
         aacSample = {unit: data.subarray(offset + headerLength, offset + headerLength + frameLength), pts: stamp, dts: stamp};
         track.samples.push(aacSample);
         track.len += frameLength;
@@ -980,7 +980,7 @@
     }
     if (offset < len) {
       aacOverFlow = data.subarray(offset, len);
-      //logger.log(`AAC: overflow detected:${len-offset}`);
+      console.log(`AAC: overflow detected:${len-offset}`);
     } else {
       aacOverFlow = null;
     }

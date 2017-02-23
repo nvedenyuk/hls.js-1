@@ -5325,12 +5325,12 @@ var TSDemuxer = function () {
       this.contiguous = false;
       this.firstSample = first;
       if (cc !== this.lastCC) {
-        _logger.logger.log('discontinuity detected');
+        console.log('discontinuity detected');
         this.insertDiscontinuity();
         this.lastCC = cc;
       }
       if (level !== this.lastLevel) {
-        _logger.logger.log('level switch detected');
+        console.log('level switch detected');
         this.switchLevel();
         this.lastLevel = level;
       }
@@ -5443,7 +5443,7 @@ var TSDemuxer = function () {
               aacId = this._aacTrack.id;
               id3Id = this._id3Track.id;
               if (unknownPIDs && !this.pmtParsed) {
-                _logger.logger.log('reparse from beginning');
+                console.log('reparse from beginning');
                 unknownPIDs = false;
                 // we set it to -188, the += 188 in the for loop will reset start to 0
                 start = -188;
@@ -5617,7 +5617,7 @@ var TSDemuxer = function () {
     value: function _parsePAT(data, offset) {
       // skip the PSI header and parse the first PMT entry
       this._pmtId = (data[offset + 10] & 0x1F) << 8 | data[offset + 11];
-      //logger.log('PMT PID:'  + this._pmtId);
+      _logger.logger.log('PMT PID:' + this._pmtId);
     }
   }, {
     key: '_parsePMT',
@@ -5656,11 +5656,11 @@ var TSDemuxer = function () {
             break;
           case 0x24:
             this.fragStats.HEVC = (this.fragStats.HEVC | 0) + 1;
-            _logger.logger.warn('HEVC stream type found, not supported for now');
+            console.warn('HEVC stream type found, not supported for now');
             break;
           default:
             this.fragStats.unknownStream = (this.fragStats.unknownStream | 0) + 1;
-            _logger.logger.log('unkown stream type:' + data[offset]);
+            console.log('unkown stream type:' + data[offset]);
             break;
         }
         // move to the next table entry
@@ -5732,7 +5732,7 @@ var TSDemuxer = function () {
               pesDts -= 8589934592;
             }
             if (pesPts - pesDts > 60 * 90000) {
-              _logger.logger.warn(Math.round((pesPts - pesDts) / 90000) + 's delta between PTS and DTS, align them');
+              console.warn(Math.round((pesPts - pesDts) / 90000) + 's delta between PTS and DTS, align them');
               pesPts = pesDts;
             }
           } else {
@@ -5969,7 +5969,7 @@ var TSDemuxer = function () {
         }
       });
       if (debug || debugString.length) {
-        _logger.logger.log(debugString);
+        console.log(debugString);
       }
       //build sample from PES
       // Annex B to MP4 conversion to be done
@@ -5982,7 +5982,7 @@ var TSDemuxer = function () {
           if (key) {
             this.fragStats.keyFrames++;
           }
-          // logger.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
+          console.log('avcSample ' + units2.length + ' ' + length + ' ' + pes.dts + ' ' + key);
           samples.push(avcSample);
           track.len += length;
           track.nbNalu += units2.length;
@@ -6027,7 +6027,7 @@ var TSDemuxer = function () {
           unitType,
           lastUnitStart,
           lastUnitType;
-      //logger.log('PES:' + Hex.hexDump(array));
+      //console.log('PES:' + Hex.hexDump(array));
       while (i < len) {
         value = array[i++];
         // finding 3 or 4-byte start codes (00 00 01 OR 00 00 00 01)
@@ -6050,10 +6050,10 @@ var TSDemuxer = function () {
               state = 3;
             } else if (value === 1 && i < len) {
               unitType = array[i] & 0x1f;
-              //logger.log('find NALU @ offset:' + i + ',type:' + unitType);
+              console.log('find NALU @ offset:' + i + ',type:' + unitType);
               if (lastUnitStart) {
                 unit = { data: array.subarray(lastUnitStart, i - state - 1), type: lastUnitType };
-                //logger.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
+                console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
                 units.push(unit);
               } else {
                 // If NAL units are not starting right at the beginning of the PES packet, push preceding data into previous NAL unit.
@@ -6061,7 +6061,7 @@ var TSDemuxer = function () {
                 if (overflow) {
                   var track = this._avcTrack,
                       samples = track.samples;
-                  //logger.log('first NALU found with overflow:' + overflow);
+                  console.log('first NALU found with overflow:' + overflow);
                   if (samples.length) {
                     var lastavcSample = samples[samples.length - 1],
                         lastUnits = lastavcSample.units.units,
@@ -6089,7 +6089,7 @@ var TSDemuxer = function () {
       if (lastUnitStart) {
         unit = { data: array.subarray(lastUnitStart, len), type: lastUnitType };
         units.push(unit);
-        //logger.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
+        console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
       }
       return units;
     }
@@ -6194,7 +6194,7 @@ var TSDemuxer = function () {
         track.channelCount = config.channelCount;
         track.codec = config.codec;
         track.duration = duration;
-        _logger.logger.log('parsed codec:' + track.codec + ',rate:' + config.samplerate + ',nb channel:' + config.channelCount);
+        console.log('parsed codec:' + track.codec + ',rate:' + config.samplerate + ',nb channel:' + config.channelCount);
       }
       frameIndex = 0;
       frameDuration = 1024 * 90000 / track.audiosamplerate;
@@ -6204,7 +6204,7 @@ var TSDemuxer = function () {
       if (aacOverFlow && lastAacPTS) {
         var newPTS = lastAacPTS + frameDuration;
         if (Math.abs(newPTS - pts) > 1) {
-          _logger.logger.log('AAC: align PTS for overlapping frames by ' + Math.round((newPTS - pts) / 90));
+          console.log('AAC: align PTS for overlapping frames by ' + Math.round((newPTS - pts) / 90));
           pts = newPTS;
         }
       }
@@ -6219,7 +6219,7 @@ var TSDemuxer = function () {
 
         if (frameLength > 0 && offset + headerLength + frameLength <= len) {
           stamp = pts + frameIndex * frameDuration;
-          //logger.log(`AAC frame, offset/length/total/pts:${offset+headerLength}/${frameLength}/${data.byteLength}/${(stamp/90).toFixed(0)}`);
+          console.log('AAC frame, offset/length/total/pts:' + (offset + headerLength) + '/' + frameLength + '/' + data.byteLength + '/' + (stamp / 90).toFixed(0));
           aacSample = { unit: data.subarray(offset + headerLength, offset + headerLength + frameLength), pts: stamp, dts: stamp };
           track.samples.push(aacSample);
           track.len += frameLength;
@@ -6237,7 +6237,7 @@ var TSDemuxer = function () {
       }
       if (offset < len) {
         aacOverFlow = data.subarray(offset, len);
-        //logger.log(`AAC: overflow detected:${len-offset}`);
+        console.log('AAC: overflow detected:' + (len - offset));
       } else {
         aacOverFlow = null;
       }
@@ -6988,7 +6988,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-90';
+      return '0.6.1-91';
     }
   }, {
     key: 'Events',
@@ -8576,10 +8576,10 @@ var MP4Remuxer = function () {
       if (this.ISGenerated) {
         // Purposefully remuxing audio before video, so that remuxVideo can use nextAacPts, which is
         // calculated in remuxAudio.
-        //logger.log('nb AAC samples:' + audioTrack.samples.length);
+        console.log('nb AAC samples:' + audioTrack.samples.length);
         if (audioTrack.samples.length) {
           var audioData = this.remuxAudio(audioTrack, timeOffset, contiguous, accurate, stats);
-          //logger.log('nb AVC samples:' + videoTrack.samples.length);
+          console.log('nb AVC samples:' + videoTrack.samples.length);
           if (videoTrack.samples.length) {
             var audioTrackLength = void 0,
                 audioStartPTS = void 0;
@@ -8593,7 +8593,7 @@ var MP4Remuxer = function () {
           }
         } else {
           var videoData = void 0;
-          //logger.log('nb AVC samples:' + videoTrack.samples.length);
+          console.log('nb AVC samples:' + videoTrack.samples.length);
           if (videoTrack.samples.length) {
             videoData = this.remuxVideo(videoTrack, timeOffset, contiguous, undefined, undefined, flush, stats);
           }
@@ -8602,11 +8602,11 @@ var MP4Remuxer = function () {
           }
         }
       }
-      //logger.log('nb ID3 samples:' + audioTrack.samples.length);
+      console.log('nb ID3 samples:' + audioTrack.samples.length);
       if (id3Track.samples.length) {
         this.remuxID3(id3Track, timeOffset);
       }
-      //logger.log('nb ID3 samples:' + audioTrack.samples.length);
+      console.log('nb ID3 samples:' + audioTrack.samples.length);
       if (textTrack.samples.length) {
         this.remuxText(textTrack, timeOffset);
       }
@@ -8644,7 +8644,7 @@ var MP4Remuxer = function () {
             audioTrack.timescale = audioTrack.audiosamplerate / greatestCommonDivisor(audioTrack.audiosamplerate, 1024);
           })();
         }
-        _logger.logger.log('audio mp4 timescale :' + audioTrack.timescale);
+        console.log('audio mp4 timescale :' + audioTrack.timescale);
         tracks.audio = {
           container: 'audio/mp4',
           codec: audioTrack.codec,
@@ -8709,7 +8709,7 @@ var MP4Remuxer = function () {
         return Math.max(Math.min(prev, curr.pts - curr.dts), -18000);
       }, 0);
       if (PTSDTSshift < 0) {
-        _logger.logger.warn('PTS < DTS detected in video samples, shifting DTS by ' + Math.round(PTSDTSshift / 90) + ' ms to overcome this issue');
+        console.warn('PTS < DTS detected in video samples, shifting DTS by ' + Math.round(PTSDTSshift / 90) + ' ms to overcome this issue');
         for (var i = 0; i < inputSamples.length; i++) {
           inputSamples[i].dts += PTSDTSshift;
         }
@@ -8730,14 +8730,14 @@ var MP4Remuxer = function () {
       // check timestamp continuity (to remove inter-fragment gap/hole)
       var delta = Math.round((firstDTS - nextAvcDts) / 90);
       if (contiguous && delta) {
-        _logger.logger.log('AVC:' + Math.abs(delta) + ' ms ' + (delta > 0 ? 'hole' : 'overlapping') + ' between fragments detected');
+        console.log('AVC:' + Math.abs(delta) + ' ms ' + (delta > 0 ? 'hole' : 'overlapping') + ' between fragments detected');
         // remove hole/gap : set DTS to next expected DTS
         firstDTS = nextAvcDts;
         inputSamples[0].dts = firstDTS + this._initDTS;
         // offset PTS as well, ensure that PTS is smaller or equal than new DTS
         firstPTS = Math.max(firstPTS - delta * 90, nextAvcDts);
         inputSamples[0].pts = firstPTS + this._initDTS;
-        _logger.logger.log('Video/PTS/DTS adjusted: ' + firstPTS + '/' + firstDTS + ',delta:' + delta);
+        console.log('Video/PTS/DTS adjusted: ' + firstPTS + '/' + firstDTS + ',delta:' + delta);
         stats.videoGap = stats.videoGap || [];
         stats.videoGap.push(delta);
       }
@@ -8824,7 +8824,7 @@ var MP4Remuxer = function () {
                 if (mp4SampleDuration < 0) {
                   mp4SampleDuration = lastFrameDuration;
                 }
-                _logger.logger.log('It is approximately ' + deltaToFrameEnd / 90 + ' ms to the next segment; using duration ' + mp4SampleDuration / 90 + ' ms for the last video frame.');
+                console.log('It is approximately ' + deltaToFrameEnd / 90 + ' ms to the next segment; using duration ' + mp4SampleDuration / 90 + ' ms for the last video frame.');
               } else {
                 mp4SampleDuration = lastFrameDuration;
               }
@@ -8949,7 +8949,7 @@ var MP4Remuxer = function () {
 
           // If we're overlapping by more than a duration, drop this sample
           if (delta < -pesFrameDuration) {
-            _logger.logger.log('Dropping frame due to ' + Math.abs(delta / 90) + ' ms overlap.');
+            console.log('Dropping frame due to ' + Math.abs(delta / 90) + ' ms overlap.');
             samples0.splice(i, 1);
             track.len -= sample.unit.length;
             // Don't touch nextPtsNorm or i
@@ -8957,13 +8957,13 @@ var MP4Remuxer = function () {
           // Otherwise, if we're more than a frame away from where we should be, insert missing frames
           else if (delta > pesFrameDuration) {
               var missing = Math.round(delta / pesFrameDuration);
-              _logger.logger.log('Injecting ' + missing + ' frame' + (missing > 1 ? 's' : '') + ' of missing audio due to ' + Math.round(delta / 90) + ' ms gap.');
+              console.log('Injecting ' + missing + ' frame' + (missing > 1 ? 's' : '') + ' of missing audio due to ' + Math.round(delta / 90) + ' ms gap.');
               for (var j = 0; j < missing; j++) {
                 newStamp = nextPtsNorm + this._initDTS;
                 newStamp = Math.max(newStamp, this._initDTS);
                 fillFrame = _aac2.default.getSilentFrame(track.channelCount);
                 if (!fillFrame) {
-                  _logger.logger.log('Unable to get silent frame for given audio codec; duplicating last frame instead.');
+                  console.log('Unable to get silent frame for given audio codec; duplicating last frame instead.');
                   fillFrame = sample.unit.slice(0);
                 }
                 samples0.splice(i, 0, { unit: fillFrame, pts: newStamp, dts: newStamp });
@@ -9010,7 +9010,7 @@ var MP4Remuxer = function () {
           if (contiguous && _delta) {
             if (_delta > 0) {
               numMissingFrames = Math.round((ptsnorm - nextAacPts) / pesFrameDuration);
-              _logger.logger.log(_delta + ' ms hole between AAC samples detected,filling it');
+              console.log(_delta + ' ms hole between AAC samples detected,filling it');
               if (numMissingFrames > 0) {
                 fillFrame = _aac2.default.getSilentFrame(track.channelCount);
                 if (!fillFrame) {
@@ -9021,7 +9021,7 @@ var MP4Remuxer = function () {
               // if we have frame overlap, overlapping for more than half a frame duraion
             } else if (_delta < -12) {
               // drop overlapping audio frames... browser will deal with it
-              _logger.logger.log(-_delta + ' ms overlapping between AAC samples detected, drop frame');
+              console.log(-_delta + ' ms overlapping between AAC samples detected, drop frame');
               track.len -= unit.byteLength;
               continue;
             }
@@ -9044,7 +9044,7 @@ var MP4Remuxer = function () {
             newStamp = ptsnorm - (numMissingFrames - _i3) * pesFrameDuration;
             fillFrame = _aac2.default.getSilentFrame(track.channelCount);
             if (!fillFrame) {
-              _logger.logger.log('Unable to get silent frame for given audio codec; duplicating this frame instead.');
+              console.log('Unable to get silent frame for given audio codec; duplicating this frame instead.');
               fillFrame = unit.slice(0);
             }
             mdat.set(fillFrame, offset);
@@ -9092,7 +9092,7 @@ var MP4Remuxer = function () {
       if (nbSamples) {
         // next aac sample PTS should be equal to last sample PTS + duration
         this.nextAacPts = ptsnorm + pes2mp4ScaleFactor * lastSampleDuration;
-        //logger.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
+        console.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
         track.len = 0;
         track.samples = samples;
         moof = _mp4Generator2.default.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);

@@ -47,10 +47,10 @@ class MP4Remuxer {
     if (this.ISGenerated) {
       // Purposefully remuxing audio before video, so that remuxVideo can use nextAacPts, which is
       // calculated in remuxAudio.
-      //logger.log('nb AAC samples:' + audioTrack.samples.length);
+      console.log('nb AAC samples:' + audioTrack.samples.length);
       if (audioTrack.samples.length) {
         let audioData = this.remuxAudio(audioTrack,timeOffset,contiguous,accurate, stats);
-        //logger.log('nb AVC samples:' + videoTrack.samples.length);
+        console.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
           let audioTrackLength, audioStartPTS;
           if (audioData) {
@@ -63,7 +63,7 @@ class MP4Remuxer {
         }
       } else {
         let videoData;
-        //logger.log('nb AVC samples:' + videoTrack.samples.length);
+        console.log('nb AVC samples:' + videoTrack.samples.length);
         if (videoTrack.samples.length) {
           videoData = this.remuxVideo(videoTrack,timeOffset,contiguous,undefined,undefined,flush,stats);
         }
@@ -72,11 +72,11 @@ class MP4Remuxer {
         }
       }
     }
-    //logger.log('nb ID3 samples:' + audioTrack.samples.length);
+    console.log('nb ID3 samples:' + audioTrack.samples.length);
     if (id3Track.samples.length) {
       this.remuxID3(id3Track,timeOffset);
     }
-    //logger.log('nb ID3 samples:' + audioTrack.samples.length);
+    console.log('nb ID3 samples:' + audioTrack.samples.length);
     if (textTrack.samples.length) {
       this.remuxText(textTrack,timeOffset);
     }
@@ -110,7 +110,7 @@ class MP4Remuxer {
         };
         audioTrack.timescale = audioTrack.audiosamplerate / greatestCommonDivisor(audioTrack.audiosamplerate,1024);
       }
-      logger.log ('audio mp4 timescale :'+ audioTrack.timescale);
+      console.log ('audio mp4 timescale :'+ audioTrack.timescale);
       tracks.audio = {
         container : 'audio/mp4',
         codec :  audioTrack.codec,
@@ -169,7 +169,7 @@ class MP4Remuxer {
     // handle broken streams with PTS < DTS, tolerance up 200ms (18000 in 90kHz timescale)
     let PTSDTSshift = inputSamples.reduce( (prev, curr) => Math.max(Math.min(prev,curr.pts-curr.dts),-18000),0);
     if (PTSDTSshift < 0) {
-      logger.warn(`PTS < DTS detected in video samples, shifting DTS by ${Math.round(PTSDTSshift/90)} ms to overcome this issue`);
+      console.warn(`PTS < DTS detected in video samples, shifting DTS by ${Math.round(PTSDTSshift/90)} ms to overcome this issue`);
       for (let i = 0; i < inputSamples.length; i++) {
         inputSamples[i].dts += PTSDTSshift;
       }
@@ -190,14 +190,14 @@ class MP4Remuxer {
     // check timestamp continuity (to remove inter-fragment gap/hole)
     let delta = Math.round((firstDTS - nextAvcDts) / 90);
     if (contiguous && delta) {
-      logger.log(`AVC:${Math.abs(delta)} ms ${delta>0 ? 'hole' : 'overlapping'} between fragments detected`);
+      console.log(`AVC:${Math.abs(delta)} ms ${delta>0 ? 'hole' : 'overlapping'} between fragments detected`);
       // remove hole/gap : set DTS to next expected DTS
       firstDTS = nextAvcDts;
       inputSamples[0].dts = firstDTS + this._initDTS;
       // offset PTS as well, ensure that PTS is smaller or equal than new DTS
       firstPTS = Math.max(firstPTS - delta*90, nextAvcDts);
       inputSamples[0].pts = firstPTS + this._initDTS;
-      logger.log(`Video/PTS/DTS adjusted: ${firstPTS}/${firstDTS},delta:${delta}`);
+      console.log(`Video/PTS/DTS adjusted: ${firstPTS}/${firstDTS},delta:${delta}`);
       stats.videoGap = stats.videoGap||[];
       stats.videoGap.push(delta);
     }
@@ -283,7 +283,7 @@ class MP4Remuxer {
               if (mp4SampleDuration < 0) {
                 mp4SampleDuration = lastFrameDuration;
               }
-              logger.log(`It is approximately ${deltaToFrameEnd/90} ms to the next segment; using duration ${mp4SampleDuration/90} ms for the last video frame.`);
+              console.log(`It is approximately ${deltaToFrameEnd/90} ms to the next segment; using duration ${mp4SampleDuration/90} ms for the last video frame.`);
             } else {
               mp4SampleDuration = lastFrameDuration;
             }
@@ -400,7 +400,7 @@ class MP4Remuxer {
 
         // If we're overlapping by more than a duration, drop this sample
         if (delta < -pesFrameDuration) {
-          logger.log(`Dropping frame due to ${Math.abs(delta / 90)} ms overlap.`);
+          console.log(`Dropping frame due to ${Math.abs(delta / 90)} ms overlap.`);
           samples0.splice(i, 1);
           track.len -= sample.unit.length;
           // Don't touch nextPtsNorm or i
@@ -408,13 +408,13 @@ class MP4Remuxer {
       // Otherwise, if we're more than a frame away from where we should be, insert missing frames
         else if (delta > pesFrameDuration) {
           var missing = Math.round(delta / pesFrameDuration);
-          logger.log(`Injecting ${missing} frame${missing > 1 ? 's' : ''} of missing audio due to ${Math.round(delta / 90)} ms gap.`);
+          console.log(`Injecting ${missing} frame${missing > 1 ? 's' : ''} of missing audio due to ${Math.round(delta / 90)} ms gap.`);
           for (var j = 0; j < missing; j++) {
             newStamp = nextPtsNorm + this._initDTS;
             newStamp = Math.max(newStamp, this._initDTS);
             fillFrame = AAC.getSilentFrame(track.channelCount);
             if (!fillFrame) {
-              logger.log('Unable to get silent frame for given audio codec; duplicating last frame instead.');
+              console.log('Unable to get silent frame for given audio codec; duplicating last frame instead.');
               fillFrame = sample.unit.slice(0);
             }
             samples0.splice(i, 0, {unit: fillFrame, pts: newStamp, dts: newStamp});
@@ -461,7 +461,7 @@ class MP4Remuxer {
           if (contiguous && delta) {
             if (delta > 0) {
               numMissingFrames = Math.round((ptsnorm - nextAacPts) / pesFrameDuration);
-              logger.log(`${delta} ms hole between AAC samples detected,filling it`);
+              console.log(`${delta} ms hole between AAC samples detected,filling it`);
               if (numMissingFrames > 0) {
                 fillFrame = AAC.getSilentFrame(track.channelCount);
                 if (!fillFrame) {
@@ -472,7 +472,7 @@ class MP4Remuxer {
               // if we have frame overlap, overlapping for more than half a frame duraion
             } else if (delta < -12) {
               // drop overlapping audio frames... browser will deal with it
-              logger.log(`${(-delta)} ms overlapping between AAC samples detected, drop frame`);
+              console.log(`${(-delta)} ms overlapping between AAC samples detected, drop frame`);
               track.len -= unit.byteLength;
               continue;
             }
@@ -495,7 +495,7 @@ class MP4Remuxer {
           newStamp = ptsnorm - (numMissingFrames - i) * pesFrameDuration;
           fillFrame = AAC.getSilentFrame(track.channelCount);
           if (!fillFrame) {
-            logger.log('Unable to get silent frame for given audio codec; duplicating this frame instead.');
+            console.log('Unable to get silent frame for given audio codec; duplicating this frame instead.');
             fillFrame = unit.slice(0);
           }
           mdat.set(fillFrame, offset);
@@ -543,7 +543,7 @@ class MP4Remuxer {
     if (nbSamples) {
       // next aac sample PTS should be equal to last sample PTS + duration
       this.nextAacPts = ptsnorm + pes2mp4ScaleFactor * lastSampleDuration;
-      //logger.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
+      console.log('Audio/PTS/PTSend:' + aacSample.pts.toFixed(0) + '/' + this.nextAacDts.toFixed(0));
       track.len = 0;
       track.samples = samples;
       moof = MP4.moof(track.sequenceNumber++, firstDTS / pes2mp4ScaleFactor, track);
