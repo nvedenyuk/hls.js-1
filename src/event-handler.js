@@ -56,6 +56,7 @@ class EventHandler {
   onEventGeneric(event, data) {
     var eventToFunction = function(event, data) {
       var funcName = 'on' + event.replace('hls', '');
+      console.log('onEventGeneric: '+event+' '+funcName);
       if (typeof this[funcName] !== 'function') {
         throw new Error(`Event ${event} has no generic handler in this ${this.constructor.name} class (tried ${funcName})`);
       }

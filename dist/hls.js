@@ -6415,6 +6415,7 @@ var EventHandler = function () {
     value: function onEventGeneric(event, data) {
       var eventToFunction = function eventToFunction(event, data) {
         var funcName = 'on' + event.replace('hls', '');
+        console.log('onEventGeneric: ' + event + ' ' + funcName);
         if (typeof this[funcName] !== 'function') {
           throw new Error('Event ' + event + ' has no generic handler in this ' + this.constructor.name + ' class (tried ' + funcName + ')');
         }
@@ -6989,7 +6990,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-94';
+      return '0.6.1-95';
     }
   }, {
     key: 'Events',
