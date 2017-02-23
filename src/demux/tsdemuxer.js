@@ -741,7 +741,7 @@
         if (key) {
           this.fragStats.keyFrames++;
         }
-        console.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
+        //console.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
         samples.push(avcSample);
         track.len += length;
         track.nbNalu += units2.length;

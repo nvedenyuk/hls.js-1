@@ -5999,7 +5999,7 @@ var TSDemuxer = function () {
           if (key) {
             this.fragStats.keyFrames++;
           }
-          console.log('avcSample ' + units2.length + ' ' + length + ' ' + pes.dts + ' ' + key);
+          //console.log(`avcSample ${units2.length} ${length} ${pes.dts} ${key}`);
           samples.push(avcSample);
           track.len += length;
           track.nbNalu += units2.length;
@@ -7006,7 +7006,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-99';
+      return '0.6.1-100';
     }
   }, {
     key: 'Events',
