@@ -6050,10 +6050,10 @@ var TSDemuxer = function () {
               state = 3;
             } else if (value === 1 && i < len) {
               unitType = array[i] & 0x1f;
-              console.log('find NALU @ offset:' + i + ',type:' + unitType);
+              //console.log('find NALU @ offset:' + i + ',type:' + unitType);
               if (lastUnitStart) {
                 unit = { data: array.subarray(lastUnitStart, i - state - 1), type: lastUnitType };
-                console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
+                //console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
                 units.push(unit);
               } else {
                 // If NAL units are not starting right at the beginning of the PES packet, push preceding data into previous NAL unit.
@@ -6089,7 +6089,7 @@ var TSDemuxer = function () {
       if (lastUnitStart) {
         unit = { data: array.subarray(lastUnitStart, len), type: lastUnitType };
         units.push(unit);
-        console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
+        //console.log('pushing NALU, type/size:' + unit.type + '/' + unit.data.byteLength);
       }
       return units;
     }
@@ -6988,7 +6988,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-91';
+      return '0.6.1-92';
     }
   }, {
     key: 'Events',
