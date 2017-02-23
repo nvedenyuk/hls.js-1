@@ -6236,7 +6236,7 @@ var TSDemuxer = function () {
 
         if (frameLength > 0 && offset + headerLength + frameLength <= len) {
           stamp = pts + frameIndex * frameDuration;
-          console.log('AAC frame, offset/length/total/pts:' + (offset + headerLength) + '/' + frameLength + '/' + data.byteLength + '/' + (stamp / 90).toFixed(0));
+          //console.log(`AAC frame, offset/length/total/pts:${offset+headerLength}/${frameLength}/${data.byteLength}/${(stamp/90).toFixed(0)}`);
           aacSample = { unit: data.subarray(offset + headerLength, offset + headerLength + frameLength), pts: stamp, dts: stamp };
           track.samples.push(aacSample);
           track.len += frameLength;
@@ -7006,7 +7006,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-98';
+      return '0.6.1-99';
     }
   }, {
     key: 'Events',
