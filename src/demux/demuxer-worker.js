@@ -53,6 +53,7 @@ var DemuxerWorker = function (self) {
   });
 
   observer.on(Event.FRAG_PARSED, function(event, data) {
+    console.log('demuxer-worker: observer.on FRAG_PARSED');
     self.postMessage({event: event, data: data});
   });
 

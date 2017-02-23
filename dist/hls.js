@@ -4442,6 +4442,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
   });
 
   observer.on(_events2.default.FRAG_PARSED, function (event, data) {
+    console.log('demuxer-worker: observer.on FRAG_PARSED');
     self.postMessage({ event: event, data: data });
   });
 
@@ -6990,7 +6991,7 @@ var Hls = function () {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-95';
+      return '0.6.1-96';
     }
   }, {
     key: 'Events',
