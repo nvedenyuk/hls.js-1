@@ -43,7 +43,19 @@ class Hls {
     return ErrorDetails;
   }
 
+  static isIe() {
+    let res, ua = typeof window !== 'undefined' && window.navigator && navigator.userAgent;
+    if ((res = /[( ]MSIE ([6789]|10).\d[);]/.exec(ua))) {
+      return {browser: 'ie', version: res[1]};
+    }
+    if ((res = /[( ]Trident\/\d+(\.\d)+.*rv:(\d\d)(\.\d)+[);]/.exec(ua))) {
+      return {browser: 'ie', version: res[2]};
+    }
+  }
+
   static get DefaultConfig() {
+      console.log('is IE:');
+      console.log(Hls.isIe());
     if(!Hls.defaultConfig) {
        Hls.defaultConfig = {
           autoStartLoad: true,
@@ -64,7 +76,7 @@ class Hls {
           liveSyncDuration: undefined,
           liveMaxLatencyDuration: undefined,
           maxMaxBufferLength: 40,
-          enableWorker: true,
+          enableWorker: !Hls.isIe(),
           enableSoftwareAES: true,
           manifestLoadingTimeOut: 20000,
           manifestLoadingMaxRetry: 4,

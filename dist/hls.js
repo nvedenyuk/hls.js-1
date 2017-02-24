@@ -4420,6 +4420,7 @@ var DemuxerWorker = function DemuxerWorker(self) {
           (0, _logger.enableLogs)(true);
         } catch (err) {
           console.warn('demuxerWorker: unable to enable logs');
+          console.log(err);
         }
         // signal end of worker init
         forwardMessage('init', null);
@@ -7005,10 +7006,22 @@ var Hls = function () {
       return window.MediaSource && window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E,mp4a.40.2"');
     }
   }, {
+    key: 'isIe',
+    value: function isIe() {
+      var res = void 0,
+          ua = typeof window !== 'undefined' && window.navigator && navigator.userAgent;
+      if (res = /[( ]MSIE ([6789]|10).\d[);]/.exec(ua)) {
+        return { browser: 'ie', version: res[1] };
+      }
+      if (res = /[( ]Trident\/\d+(\.\d)+.*rv:(\d\d)(\.\d)+[);]/.exec(ua)) {
+        return { browser: 'ie', version: res[2] };
+      }
+    }
+  }, {
     key: 'version',
     get: function get() {
       // replaced with browserify-versionify transform
-      return '0.6.1-101';
+      return '0.6.1-102';
     }
   }, {
     key: 'Events',
@@ -7028,6 +7041,8 @@ var Hls = function () {
   }, {
     key: 'DefaultConfig',
     get: function get() {
+      console.log('is IE:');
+      console.log(Hls.isIe());
       if (!Hls.defaultConfig) {
         Hls.defaultConfig = {
           autoStartLoad: true,
@@ -7048,7 +7063,7 @@ var Hls = function () {
           liveSyncDuration: undefined,
           liveMaxLatencyDuration: undefined,
           maxMaxBufferLength: 40,
-          enableWorker: true,
+          enableWorker: !Hls.isIe(),
           enableSoftwareAES: true,
           manifestLoadingTimeOut: 20000,
           manifestLoadingMaxRetry: 4,
